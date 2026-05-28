@@ -46,6 +46,15 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
   font-family:inherit;font-size:15px;letter-spacing:1px;border-radius:4px;cursor:pointer}
 .btn:hover,.btn:active{background:#2f6f2f;color:#dfffdf}
 #goTitle{font-size:26px}
+.diffRow{display:flex;gap:8px;margin:2px 0}
+.diffBtn{background:#142a14;border:1px solid #3a6a3a;color:#9fd49f;padding:6px 14px;
+  font-family:inherit;font-size:12px;letter-spacing:1px;border-radius:4px;cursor:pointer}
+.diffBtn.sel{background:#2f6f2f;border-color:#7fd47f;color:#eaffea;font-weight:700}
+#goStats{display:flex;gap:22px;margin:2px 0;color:#bfe6bf;font-size:13px;letter-spacing:1px}
+#goStats b{color:#ffd34d;font-size:18px;display:block}
+.hi{color:#ffd34d}
+#btnMute{position:fixed;top:6px;right:8px;z-index:7;width:34px;height:34px;border-radius:6px;
+  background:rgba(10,22,10,.82);border:1px solid #2f5f2f;color:#bfe6bf;font-size:16px;cursor:pointer;line-height:1}
 
 /* Rotate prompt */
 #rotate{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
@@ -70,7 +79,9 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
     <div class="chip" id="fuelWrap">⛽<div id="fuelBar"><div id="fuelFill"></div></div></div>
     <div class="chip">🚨 <b id="hAlerts">0</b></div>
     <div class="chip">NIVEL <b id="hLevel">1</b></div>
+    <div class="chip">★ <b id="hScore">0</b></div>
   </div>
+  <button id="btnMute" aria-label="sonido">🔊</button>
 
   <div id="joy"><div id="joyKnob"></div></div>
   <div id="btnA">CAPTURAR<small>desplegar</small></div>
@@ -83,13 +94,24 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
        Rocha escapa usando los <b style="color:#7ac0ff">túneles</b> entre los puntos de Culiacán.<br>
        ¡Logra <b style="color:#ffd34d">3 capturas</b> para ganar!</p>
     <p class="warn">⚠ Sus escoltas disparan si te quedas cerca. La niebla del Humaya lo esconde, el Mercado es un laberinto y desde La Lomita lo localizas.</p>
+    <div class="diffRow">
+      <button class="diffBtn" data-d="facil" onclick="setDiff('facil')">FÁCIL</button>
+      <button class="diffBtn sel" data-d="normal" onclick="setDiff('normal')">NORMAL</button>
+      <button class="diffBtn" data-d="dificil" onclick="setDiff('dificil')">DIFÍCIL</button>
+    </div>
     <button class="btn" onclick="startGame()">▶ INICIAR MISIÓN</button>
     <p class="ctrls" id="ctrlText">WASD / flechas · ESPACIO para desplegar</p>
+    <p class="ctrls">Récord: <b class="hi" id="startHigh">0</b> pts</p>
   </div>
 
   <div class="screen" id="gameOverScreen" style="display:none">
     <h1 id="goTitle">MISIÓN FALLIDA</h1>
     <p id="goMsg"></p>
+    <div id="goStats">
+      <div>PUNTOS<b id="goScore">0</b></div>
+      <div>RÉCORD<b id="goHigh">0</b></div>
+    </div>
+    <p class="ctrls" id="goNew" style="display:none;color:#ffd34d">★ ¡NUEVO RÉCORD! ★</p>
     <button class="btn" onclick="startGame()">↺ REINTENTAR</button>
   </div>
 
@@ -148,6 +170,73 @@ let mapCanvas=null;
 let joyX=0,joyY=0;       // -1..1 del joystick
 let deployEdge=false;    // petición puntual de desplegar
 const isTouch = matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window);
+
+/* ---------- LocalStorage seguro ---------- */
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+/* ---------- Dificultad ---------- */
+const DIFFS={
+  facil:  {rochaSpd:0.82,tunnel:0.6, shoot:58,dmg:7, drain:0.010,time:140},
+  normal: {rochaSpd:1.0, tunnel:1.0, shoot:45,dmg:10,drain:0.013,time:120},
+  dificil:{rochaSpd:1.22,tunnel:1.45,shoot:34,dmg:14,drain:0.016,time:100},
+};
+let diffKey='normal';
+function setDiff(k){diffKey=k;document.querySelectorAll('.diffBtn').forEach(b=>b.classList.toggle('sel',b.dataset.d===k));initAudio();SFX.ui();}
+
+/* ---------- Récord ---------- */
+let highScore=parseInt(lsGet('rocha_highscore')||'0',10)||0;
+
+/* ---------- Audio (Web Audio, 8-bit) ---------- */
+let audioCtx=null,masterGain=null,rotorOsc=null;
+let muted=lsGet('rocha_muted')==='1';
+function initAudio(){
+  if(audioCtx)return;
+  try{
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    masterGain=audioCtx.createGain();
+    masterGain.gain.value=muted?0:0.5;
+    masterGain.connect(audioCtx.destination);
+  }catch(e){audioCtx=null;}
+}
+function beep(freq,dur,type='square',vol=0.3,slideTo=null){
+  if(!audioCtx||muted)return;
+  const t=audioCtx.currentTime, o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,t);
+  if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+  g.gain.setValueAtTime(vol,t);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(masterGain);
+  o.start(t);o.stop(t+dur);
+}
+const SFX={
+  shoot(){beep(220,0.08,'square',0.15,90);},
+  hit(){beep(150,0.25,'sawtooth',0.32,40);},
+  capture(){beep(440,0.1,'square',0.28);setTimeout(()=>beep(660,0.1,'square',0.28),90);setTimeout(()=>beep(880,0.18,'square',0.28),180);},
+  tunnel(){beep(520,0.22,'sine',0.22,150);},
+  deploy(){beep(330,0.12,'triangle',0.22,520);},
+  refuel(){beep(700,0.05,'sine',0.1);},
+  alert(){beep(180,0.12,'sawtooth',0.18,260);},
+  win(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,0.2,'square',0.28),i*150));},
+  lose(){[330,247,165].forEach((f,i)=>setTimeout(()=>beep(f,0.32,'sawtooth',0.28,f*0.6),i*200));},
+  ui(){beep(660,0.05,'square',0.15);},
+};
+function startRotor(){
+  if(!audioCtx||rotorOsc||muted)return;
+  rotorOsc=audioCtx.createOscillator();
+  const g=audioCtx.createGain(), lfo=audioCtx.createOscillator(), lfoG=audioCtx.createGain();
+  rotorOsc.type='triangle';rotorOsc.frequency.value=55;
+  lfo.frequency.value=13;lfoG.gain.value=16;lfo.connect(lfoG);lfoG.connect(rotorOsc.frequency);
+  g.gain.value=0.05;rotorOsc.connect(g);g.connect(masterGain);
+  rotorOsc.start();lfo.start();rotorOsc._lfo=lfo;
+}
+function stopRotor(){if(rotorOsc){try{rotorOsc.stop();rotorOsc._lfo.stop();}catch(e){}rotorOsc=null;}}
+function setMuted(m){
+  muted=m;lsSet('rocha_muted',m?'1':'0');
+  if(masterGain)masterGain.gain.value=m?0:0.5;
+  const b=document.getElementById('btnMute');if(b)b.textContent=m?'🔇':'🔊';
+  if(m)stopRotor(); else if(gameRunning)startRotor();
+}
 
 /* ---------- Helpers de dibujo ---------- */
 function rect(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
@@ -295,7 +384,8 @@ function initState(){
     fuel:100,
     captures:0,
     alerts:0,
-    time:120,
+    score:0,
+    time:DIFFS[diffKey].time,
     level:1,
     deploying:false,
     deployTimer:0,
@@ -310,8 +400,11 @@ function startGame(){
   document.getElementById('startScreen').style.display='none';
   document.getElementById('gameOverScreen').style.display='none';
   if(animFrame)cancelAnimationFrame(animFrame);
+  initAudio();
+  if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
   state=initState();
   gameRunning=true;
+  startRotor();
   loop();
 }
 
@@ -334,6 +427,7 @@ function rochaTunnel(){
   state.rocha.target=LANDMARKS[dest];
   state.rocha.bubble=90;
   addMsg("¡Rocha se metió al túnel!");
+  SFX.tunnel();
   for(let i=0;i<8;i++)state.particles.push({x:state.rocha.x,y:state.rocha.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:22,max:22,color:'#bcd'});
 }
 
@@ -350,21 +444,21 @@ function update(){
   state.time-=1/60;
   if(state.time<=0){return endGame(false,"Se acabó el tiempo. Rocha sigue libre.");}
 
-  const heli=state.heli, r=state.rocha;
+  const heli=state.heli, r=state.rocha, D=DIFFS[diffKey];
 
   // efectos de zona
-  let speedMult=1, inFog=false;
+  let speedMult=1;
   state.miradorActive=false;
   LANDMARKS.forEach(l=>{
     if(!l.fx)return;
     const d=dist(heli,l);
-    if(l.fx==='refuel' && d<l.r+12){state.fuel=Math.min(100,state.fuel+0.28);if(state.tick%30<2)addMsg("Reabasteciendo combustible…");}
+    if(l.fx==='refuel' && d<l.r+12){state.fuel=Math.min(100,state.fuel+0.28);if(state.tick%30<2){addMsg("Reabasteciendo combustible…");SFX.refuel();}}
     if(l.fx==='maze'   && d<l.r+16){speedMult=0.5;if(state.tick%40<2)addMsg("¡Laberinto del Mercado! Te frenas.");}
     if(l.fx==='mirador'&& d<l.r+26){state.miradorActive=true;}
   });
 
-  // combustible (consumo moderado)
-  state.fuel=Math.max(0,state.fuel-0.013);
+  // combustible (consumo según dificultad)
+  state.fuel=Math.max(0,state.fuel-D.drain);
   if(state.fuel<=0){return endGame(false,"Te quedaste sin combustible.");}
 
   // movimiento del helicóptero (joystick + teclado)
@@ -388,12 +482,12 @@ function update(){
     r.y+=(r.target.y-r.y)*0.16;
     if(r.tunnelTimer<=0){r.tunneling=false;r.target=null;}
   } else {
-    const spd=0.95+state.level*0.14;
+    const spd=(0.95+state.level*0.14)*D.rochaSpd;
     const dh=dist(r,heli);
     if(dh<140){
       const a=Math.atan2(r.y-heli.y,r.x-heli.x);
       r.vx+=Math.cos(a)*0.13;r.vy+=Math.sin(a)*0.13;
-      if(dh<90&&Math.random()<0.045)rochaTunnel();
+      if(dh<90&&Math.random()<0.045*D.tunnel)rochaTunnel();
     } else if(state.tick%80===0){
       r.vx=(Math.random()-.5)*2;r.vy=(Math.random()-.5)*2;
     }
@@ -403,7 +497,7 @@ function update(){
     r.x=Math.max(20,Math.min(W-20,r.x+r.vx));
     r.y=Math.max(20,Math.min(H-20,r.y+r.vy));
     const near=getNearestLandmark(r);
-    if(near!==null&&dist(r,LANDMARKS[near])<24&&Math.random()<0.014)rochaTunnel();
+    if(near!==null&&dist(r,LANDMARKS[near])<24&&Math.random()<0.014*D.tunnel)rochaTunnel();
 
     // globito "¿y las pruebas?"
     r.bubbleNext--;
@@ -420,12 +514,13 @@ function update(){
     const dh=dist(e,heli);
     if(dh<85){
       e.shootTimer++;
-      if(e.shootTimer>45){
+      if(e.shootTimer>D.shoot){
         const a=Math.atan2(heli.y-e.y,heli.x-e.x);
         state.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*4.2,vy:Math.sin(a)*4.2,life:55});
         e.shootTimer=0;
         state.alerts=Math.min(9,state.alerts+1);
         addMsg("¡Escolta disparando!");
+        SFX.shoot();
       }
     } else e.shootTimer=Math.max(0,e.shootTimer-1);
   });
@@ -434,8 +529,10 @@ function update(){
   state.bullets=state.bullets.filter(b=>{
     b.x+=b.vx;b.y+=b.vy;b.life--;
     if(dist(b,heli)<13){
-      state.fuel=Math.max(0,state.fuel-10);
+      state.fuel=Math.max(0,state.fuel-D.dmg);
+      state.score=Math.max(0,state.score-100);
       addMsg("¡Impacto! Pierdes combustible.");
+      SFX.hit();
       for(let i=0;i<10;i++)state.particles.push({x:heli.x,y:heli.y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:26,max:26,color:'#ff8844'});
       return false;
     }
@@ -445,7 +542,7 @@ function update(){
   // desplegar soldado
   if(deployEdge){deployEdge=false;
     if(!state.deploying&&state.fuel>8&&dist(heli,r)<70){
-      state.deploying=true;state.deployTimer=55;addMsg("Desplegando soldado…");
+      state.deploying=true;state.deployTimer=55;addMsg("Desplegando soldado…");SFX.deploy();
     } else if(!state.deploying){
       addMsg("Acércate más a Rocha para desplegar.");
     }
@@ -456,8 +553,11 @@ function update(){
       state.deploying=false;
       if(dist(heli,r)<78&&!r.tunneling){
         state.captures++;
+        const gain=500*state.level;
+        state.score+=gain;
+        SFX.capture();
         for(let i=0;i<16;i++)state.particles.push({x:r.x,y:r.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:38,max:38,color:'#77ff77'});
-        addMsg("¡CAPTURADO! +1");
+        addMsg("¡CAPTURADO! +"+gain);
         if(state.captures>=3)return endGame(true,"¡Misión cumplida! Por fin… ¿y el Rocha? ¡Capturado!");
         // reubicar en un punto aleatorio
         const L=LANDMARKS[(Math.random()*LANDMARKS.length)|0];
@@ -482,6 +582,7 @@ function update(){
   document.getElementById('hCaptures').textContent=state.captures;
   document.getElementById('hAlerts').textContent=state.alerts;
   document.getElementById('hLevel').textContent=state.level;
+  document.getElementById('hScore').textContent=state.score;
   const ff=document.getElementById('fuelFill');
   ff.style.width=state.fuel+'%';
   ff.style.background=state.fuel>40?'#5fcf5f':state.fuel>18?'#e0c040':'#e05050';
@@ -490,9 +591,22 @@ function update(){
 function endGame(win,msg){
   gameRunning=false;
   if(animFrame)cancelAnimationFrame(animFrame);
+  stopRotor();
+  if(win){
+    const bonus=Math.ceil(state.time)*10+Math.round(state.fuel)*5;
+    state.score+=bonus;
+    msg+=" Bono: tiempo +"+(Math.ceil(state.time)*10)+", combustible +"+(Math.round(state.fuel)*5)+".";
+    SFX.win();
+  } else SFX.lose();
+  const isRecord=state.score>highScore;
+  if(isRecord){highScore=state.score;lsSet('rocha_highscore',''+highScore);}
   document.getElementById('gameOverScreen').style.display='flex';
   document.getElementById('goTitle').textContent=win?"🏆 MISIÓN CUMPLIDA":"MISIÓN FALLIDA";
   document.getElementById('goMsg').textContent=msg;
+  document.getElementById('goScore').textContent=state.score;
+  document.getElementById('goHigh').textContent=highScore;
+  document.getElementById('goNew').style.display=isRecord?'block':'none';
+  document.getElementById('startHigh').textContent=highScore;
 }
 
 /* ---------- Dibujo de entidades ---------- */
@@ -671,10 +785,16 @@ function resize(){
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,200));
 
+// Botón de silencio
+const btnMute=document.getElementById('btnMute');
+btnMute.textContent=muted?'🔇':'🔊';
+btnMute.addEventListener('click',()=>{initAudio();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();setMuted(!muted);if(!muted)SFX.ui();});
+
 /* ---------- Init ---------- */
 mapCanvas=buildMap();
 if(isTouch){joy.style.display='block';btnA.style.display='flex';
   document.getElementById('ctrlText').textContent='Joystick para volar · botón para desplegar soldado';}
+document.getElementById('startHigh').textContent=highScore;
 resize();
 // pantalla inicial de fondo
 ctx.drawImage(mapCanvas,0,0);
