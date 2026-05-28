@@ -46,6 +46,9 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
   font-family:inherit;font-size:15px;letter-spacing:1px;border-radius:4px;cursor:pointer}
 .btn:hover,.btn:active{background:#2f6f2f;color:#dfffdf}
 #goTitle{font-size:26px}
+#legend{display:flex;flex-wrap:wrap;gap:5px 14px;justify-content:center;max-width:470px;margin:2px 0}
+#legend span{font-size:11px;color:#cfe6cf;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+#legend b{color:#ffd34d;font-weight:700}
 .diffRow{display:flex;gap:8px;margin:2px 0}
 .diffBtn{background:#142a14;border:1px solid #3a6a3a;color:#9fd49f;padding:6px 14px;
   font-family:inherit;font-size:12px;letter-spacing:1px;border-radius:4px;cursor:pointer}
@@ -93,7 +96,13 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
        Acércate y despliega un soldado para <b style="color:#ffd34d">capturarlo</b>.<br>
        Rocha escapa usando los <b style="color:#7ac0ff">túneles</b> entre los puntos de Culiacán.<br>
        ¡Logra <b style="color:#ffd34d">3 capturas</b> para ganar!</p>
-    <p class="warn">⚠ Sus escoltas disparan si te quedas cerca. La niebla del Humaya lo esconde, el Mercado es un laberinto y desde La Lomita lo localizas.</p>
+    <p class="warn">⚠ Las escoltas disparan si te quedas cerca demasiado tiempo.</p>
+    <div id="legend">
+      <span>🌫️ <b>Humaya</b>: niebla, lo esconde</span>
+      <span>🧩 <b>Mercado</b>: laberinto, te frena</span>
+      <span>⛽ <b>Tomateros/Forum</b>: recarga combustible</span>
+      <span>🔭 <b>La Lomita</b>: lo localiza</span>
+    </div>
     <div class="diffRow">
       <button class="diffBtn" data-d="facil" onclick="setDiff('facil')">FÁCIL</button>
       <button class="diffBtn sel" data-d="normal" onclick="setDiff('normal')">NORMAL</button>
@@ -237,6 +246,9 @@ function setMuted(m){
   const b=document.getElementById('btnMute');if(b)b.textContent=m?'🔇':'🔊';
   if(m)stopRotor(); else if(gameRunning)startRotor();
 }
+
+/* ---------- Vibración (háptica) ---------- */
+function vibrate(p){if(muted)return;try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
 
 /* ---------- Helpers de dibujo ---------- */
 function rect(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
@@ -392,6 +404,7 @@ function initState(){
     msg:"",
     msgTimer:0,
     tick:0,
+    huntStart:0,
     miradorActive:false,
   };
 }
@@ -532,7 +545,7 @@ function update(){
       state.fuel=Math.max(0,state.fuel-D.dmg);
       state.score=Math.max(0,state.score-100);
       addMsg("¡Impacto! Pierdes combustible.");
-      SFX.hit();
+      SFX.hit();vibrate(60);
       for(let i=0;i<10;i++)state.particles.push({x:heli.x,y:heli.y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:26,max:26,color:'#ff8844'});
       return false;
     }
@@ -554,10 +567,12 @@ function update(){
       if(dist(heli,r)<78&&!r.tunneling){
         state.captures++;
         const gain=500*state.level;
-        state.score+=gain;
-        SFX.capture();
+        const sb=Math.round(Math.max(0,600-(state.tick-state.huntStart))/2); // bono captura rápida
+        state.score+=gain+sb;
+        state.huntStart=state.tick;
+        SFX.capture();vibrate([25,35,25]);
         for(let i=0;i<16;i++)state.particles.push({x:r.x,y:r.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:38,max:38,color:'#77ff77'});
-        addMsg("¡CAPTURADO! +"+gain);
+        addMsg("¡CAPTURADO! +"+gain+(sb>0?" (rápido +"+sb+")":""));
         if(state.captures>=3)return endGame(true,"¡Misión cumplida! Por fin… ¿y el Rocha? ¡Capturado!");
         // reubicar en un punto aleatorio
         const L=LANDMARKS[(Math.random()*LANDMARKS.length)|0];
@@ -596,8 +611,8 @@ function endGame(win,msg){
     const bonus=Math.ceil(state.time)*10+Math.round(state.fuel)*5;
     state.score+=bonus;
     msg+=" Bono: tiempo +"+(Math.ceil(state.time)*10)+", combustible +"+(Math.round(state.fuel)*5)+".";
-    SFX.win();
-  } else SFX.lose();
+    SFX.win();vibrate([60,60,60,60,120]);
+  } else {SFX.lose();vibrate(200);}
   const isRecord=state.score>highScore;
   if(isRecord){highScore=state.score;lsSet('rocha_highscore',''+highScore);}
   document.getElementById('gameOverScreen').style.display='flex';
