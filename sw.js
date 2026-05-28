@@ -1,4 +1,4 @@
-const CACHE='rocha-v2';
+const CACHE='rocha-v3';
 const ASSETS=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-180.png','./cover.png'];
 
 self.addEventListener('install',e=>{
