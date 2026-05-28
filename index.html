@@ -51,6 +51,13 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
 .screen p{font-size:12px;color:#cfe6cf;max-width:440px;line-height:1.7}
 .screen .warn{color:#ff9a6a;font-size:11px}
 .screen .ctrls{color:#8fb88f;font-size:11px}
+#startScreen{justify-content:space-between;padding:calc(10px + env(safe-area-inset-top)) 14px calc(8px + env(safe-area-inset-bottom));gap:4px;overflow-y:auto;
+  background:linear-gradient(180deg,rgba(8,12,12,.12) 0%,rgba(8,12,12,.30) 42%,rgba(8,12,12,.9) 100%),url('cover.png') center/cover no-repeat;background-color:#0c160c}
+#startTop{display:flex;flex-direction:column;gap:3px}
+#startScreen h1{font-size:34px;text-shadow:3px 3px 0 #000,-2px -2px 0 #000,0 0 18px rgba(255,170,0,.55)}
+#startTagline{font-size:12px;color:#ffe9b0;text-shadow:1px 1px 2px #000;margin:0 auto;max-width:440px}
+#startPanel{display:flex;flex-direction:column;align-items:center;gap:7px;width:100%;max-width:520px;margin:0 auto;
+  background:linear-gradient(180deg,rgba(8,14,10,0),rgba(8,14,10,.5));padding:6px 8px 2px;border-radius:8px}
 .btn{margin-top:6px;background:#1d3d1d;border:2px solid #5fbf5f;color:#bfffbf;padding:10px 26px;
   font-family:inherit;font-size:15px;letter-spacing:1px;border-radius:4px;cursor:pointer}
 .btn:hover,.btn:active{background:#2f6f2f;color:#dfffdf}
@@ -99,29 +106,28 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
   <div id="btnA">CAPTURAR<small>desplegar</small></div>
 
   <div class="screen" id="startScreen">
-    <h1>¿Y EL ROCHA?</h1>
-    <h2>OPERATIVO CULIACÁN</h2>
-    <p>Pilotea el helicóptero y persigue a Rocha por la ciudad.<br>
-       Acércate y despliega un soldado para <b style="color:#ffd34d">capturarlo</b>.<br>
-       Rocha escapa usando los <b style="color:#7ac0ff">túneles</b> entre los puntos de Culiacán.<br>
-       ¡Logra <b style="color:#ffd34d">3 capturas</b> para ganar!</p>
-    <p class="warn">⚠ Las escoltas disparan si te quedas cerca demasiado tiempo.</p>
-    <div id="legend">
-      <span>🌫️ <b>Humaya</b>: niebla, lo esconde</span>
-      <span>🧩 <b>Mercado</b>: laberinto, te frena</span>
-      <span>⛽ <b>Tomateros/Forum</b>: recarga combustible</span>
-      <span>🔭 <b>La Lomita</b>: lo localiza</span>
+    <div id="startTop">
+      <h1>¿Y EL ROCHA?</h1>
+      <p id="startTagline">Persíguelo en helicóptero por Culiacán · 3 capturas para ganar</p>
     </div>
-    <div class="diffRow">
-      <button class="diffBtn" data-d="facil" onclick="setDiff('facil')">FÁCIL</button>
-      <button class="diffBtn sel" data-d="normal" onclick="setDiff('normal')">NORMAL</button>
-      <button class="diffBtn" data-d="dificil" onclick="setDiff('dificil')">DIFÍCIL</button>
+    <div id="startPanel">
+      <div id="legend">
+        <span>🌫️ <b>Humaya</b>: niebla</span>
+        <span>🧩 <b>Mercado</b>: laberinto</span>
+        <span>⛽ <b>Tomateros/Forum</b>: recarga</span>
+        <span>🔭 <b>La Lomita</b>: localiza</span>
+      </div>
+      <div class="diffRow">
+        <button class="diffBtn" data-d="facil" onclick="setDiff('facil')">FÁCIL</button>
+        <button class="diffBtn sel" data-d="normal" onclick="setDiff('normal')">NORMAL</button>
+        <button class="diffBtn" data-d="dificil" onclick="setDiff('dificil')">DIFÍCIL</button>
+      </div>
+      <button class="btn" onclick="startGame()">▶ INICIAR MISIÓN</button>
+      <button class="btn" id="btnInstall" style="display:none;font-size:13px;padding:7px 18px" onclick="installApp()">📲 Instalar app</button>
+      <p class="ctrls" id="installHint" style="display:none">Para instalar: toca <b class="hi">Compartir</b> y luego <b class="hi">Añadir a inicio</b></p>
+      <p class="ctrls" id="ctrlText">WASD / flechas · ESPACIO para desplegar</p>
+      <p class="ctrls">Récord: <b class="hi" id="startHigh">0</b> pts</p>
     </div>
-    <button class="btn" onclick="startGame()">▶ INICIAR MISIÓN</button>
-    <button class="btn" id="btnInstall" style="display:none;font-size:13px;padding:7px 18px" onclick="installApp()">📲 Instalar app</button>
-    <p class="ctrls" id="installHint" style="display:none">Para instalar: toca <b class="hi">Compartir</b> y luego <b class="hi">Añadir a inicio</b></p>
-    <p class="ctrls" id="ctrlText">WASD / flechas · ESPACIO para desplegar</p>
-    <p class="ctrls">Récord: <b class="hi" id="startHigh">0</b> pts</p>
   </div>
 
   <div class="screen" id="gameOverScreen" style="display:none">
