@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>¿Y el Rocha?</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+html,body{height:100%;width:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace;touch-action:none;overscroll-behavior:none}
+#game{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#0c160c;box-shadow:0 0 0 2px #000}
+
+/* HUD */
+#hud{position:fixed;top:0;left:0;width:100%;display:flex;gap:6px;justify-content:center;align-items:center;
+  padding:5px 6px;flex-wrap:wrap;z-index:5;pointer-events:none}
+.chip{background:rgba(10,22,10,0.82);border:1px solid #2f5f2f;border-radius:4px;padding:3px 8px;
+  font-size:11px;line-height:1;color:#bfe6bf;letter-spacing:.5px;white-space:nowrap}
+.chip b{color:#ffd34d;font-weight:700}
+#fuelWrap{display:flex;align-items:center;gap:5px}
+#fuelBar{width:48px;height:8px;background:#0c1a0c;border:1px solid #2f5f2f;border-radius:2px;overflow:hidden}
+#fuelFill{height:100%;width:100%;background:#5fcf5f;transition:width .1s linear}
+
+/* Touch controls */
+#joy{position:fixed;left:20px;bottom:20px;width:120px;height:120px;border-radius:50%;
+  background:radial-gradient(circle,rgba(20,40,20,.55),rgba(10,20,10,.35));border:2px solid rgba(120,200,120,.45);
+  z-index:6;display:none;touch-action:none}
+#joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#7fd47f,#2f7f2f);border:2px solid #bfe6bf;
+  transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.5)}
+#btnA{position:fixed;right:24px;bottom:26px;width:104px;height:104px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ffe07a,#c98a18);border:3px solid #fff3c0;
+  z-index:6;display:none;align-items:center;justify-content:center;text-align:center;
+  color:#3a2a00;font-weight:700;font-size:13px;line-height:1.05;box-shadow:0 3px 8px rgba(0,0,0,.55);touch-action:none}
+#btnA.act{transform:scale(.92);filter:brightness(1.15)}
+#btnA small{display:block;font-size:9px;font-weight:700;opacity:.8}
+
+/* Overlays */
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;background:rgba(0,0,0,.86);z-index:10;text-align:center;padding:18px}
+.screen h1{font-size:30px;color:#ffd34d;letter-spacing:2px;text-shadow:3px 3px 0 #000,0 0 16px rgba(255,180,0,.4)}
+.screen h2{font-size:13px;color:#7fbf7f;letter-spacing:3px}
+.screen p{font-size:12px;color:#cfe6cf;max-width:440px;line-height:1.7}
+.screen .warn{color:#ff9a6a;font-size:11px}
+.screen .ctrls{color:#8fb88f;font-size:11px}
+.btn{margin-top:6px;background:#1d3d1d;border:2px solid #5fbf5f;color:#bfffbf;padding:10px 26px;
+  font-family:inherit;font-size:15px;letter-spacing:1px;border-radius:4px;cursor:pointer}
+.btn:hover,.btn:active{background:#2f6f2f;color:#dfffdf}
+#goTitle{font-size:26px}
+
+/* Rotate prompt */
+#rotate{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:18px;background:#06120a;z-index:20;color:#bfe6bf;text-align:center;padding:24px}
+#rotate .phone{width:54px;height:90px;border:4px solid #7fd47f;border-radius:10px;
+  animation:rot 1.6s ease-in-out infinite}
+#rotate .phone i{display:block;width:14px;height:3px;background:#7fd47f;margin:6px auto 0;border-radius:2px}
+#rotate p{font-size:15px;letter-spacing:1px}
+#rotate small{font-size:11px;color:#7fbf7f}
+@keyframes rot{0%,40%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+</style>
+</head>
+<body>
+<div id="game">
+  <h1 class="sr-only">¿Y el Rocha? — juego de helicóptero por Culiacán</h1>
+  <canvas id="gc" width="720" height="405"></canvas>
+
+  <div id="hud">
+    <div class="chip">⏱ <b id="hTimer">120</b>s</div>
+    <div class="chip">🎯 <b id="hCaptures">0</b>/3</div>
+    <div class="chip" id="fuelWrap">⛽<div id="fuelBar"><div id="fuelFill"></div></div></div>
+    <div class="chip">🚨 <b id="hAlerts">0</b></div>
+    <div class="chip">NIVEL <b id="hLevel">1</b></div>
+  </div>
+
+  <div id="joy"><div id="joyKnob"></div></div>
+  <div id="btnA">CAPTURAR<small>desplegar</small></div>
+
+  <div class="screen" id="startScreen">
+    <h1>¿Y EL ROCHA?</h1>
+    <h2>OPERATIVO CULIACÁN</h2>
+    <p>Pilotea el helicóptero y persigue a Rocha por la ciudad.<br>
+       Acércate y despliega un soldado para <b style="color:#ffd34d">capturarlo</b>.<br>
+       Rocha escapa usando los <b style="color:#7ac0ff">túneles</b> entre los puntos de Culiacán.<br>
+       ¡Logra <b style="color:#ffd34d">3 capturas</b> para ganar!</p>
+    <p class="warn">⚠ Sus escoltas disparan si te quedas cerca. La niebla del Humaya lo esconde, el Mercado es un laberinto y desde La Lomita lo localizas.</p>
+    <button class="btn" onclick="startGame()">▶ INICIAR MISIÓN</button>
+    <p class="ctrls" id="ctrlText">WASD / flechas · ESPACIO para desplegar</p>
+  </div>
+
+  <div class="screen" id="gameOverScreen" style="display:none">
+    <h1 id="goTitle">MISIÓN FALLIDA</h1>
+    <p id="goMsg"></p>
+    <button class="btn" onclick="startGame()">↺ REINTENTAR</button>
+  </div>
+
+  <div id="rotate">
+    <div class="phone"><i></i></div>
+    <p>Gira tu teléfono</p>
+    <small>Se juega mejor en horizontal</small>
+  </div>
+</div>
+
+<script>
+const canvas=document.getElementById('gc');
+const ctx=canvas.getContext('2d');
+const W=720,H=405;
+ctx.imageSmoothingEnabled=false;
+
+/* ---------- Lugares de Culiacán ---------- */
+// type: define el sprite y el efecto especial
+const LANDMARKS=[
+  {name:"Catedral",        x:250,y:150,r:16,type:"catedral"},
+  {name:"Mercado Garmendia",x:185,y:235,r:16,type:"mercado", fx:"maze"},
+  {name:"La Lomita",       x:235,y:335,r:18,type:"lomita",  fx:"mirador"},
+  {name:"Estadio Tomateros",x:88,y:118,r:20,type:"estadio", fx:"refuel"},
+  {name:"Las Riberas",     x:485,y:300,r:18,type:"parque"},
+  {name:"Forum",           x:625,y:165,r:18,type:"forum",   fx:"refuel"},
+  {name:"Río Humaya",      x:110,y:58, r:16,type:"humaya",  fx:"fog"},
+  {name:"Centro Histórico",x:315,y:100,r:15,type:"centro"},
+  {name:"Malecón",         x:470,y:100,r:15,type:"malecon"},
+];
+
+const TUNNELS=[
+  [0,7],[7,6],[6,3],[3,1],[1,0],[1,2],[0,8],[7,8],[8,5],[5,4],[4,2],[4,0],[2,3]
+];
+
+// Rutas de los ríos (Humaya + Tamazula -> Río Culiacán)
+const RIVER_HUMAYA=[[140,-10],[165,70],[205,150],[280,225],[347,256]];
+const RIVER_TAMAZULA=[[600,-10],[565,70],[480,150],[395,215],[347,256]];
+const RIVER_CULIACAN=[[347,256],[430,320],[560,420]];
+
+// Avenidas principales
+const ROADS=[
+  [[40,185],[680,185]],
+  [[320,30],[320,380]],
+  [[40,110],[680,110]],
+  [[40,300],[680,300]],
+  [[150,30],[150,380]],
+  [[560,30],[560,380]],
+];
+
+let state={};
+let keys={};
+let animFrame=null;
+let gameRunning=false;
+let mapCanvas=null;
+
+let joyX=0,joyY=0;       // -1..1 del joystick
+let deployEdge=false;    // petición puntual de desplegar
+const isTouch = matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window);
+
+/* ---------- Helpers de dibujo ---------- */
+function rect(c,x,y,w,h,col){c.fillStyle=col;c.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h));}
+function circ(c,x,y,r,col){c.fillStyle=col;c.beginPath();c.arc(Math.round(x),Math.round(y),r,0,Math.PI*2);c.fill();}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+function poly(c,pts,w,col){c.strokeStyle=col;c.lineWidth=w;c.lineCap='round';c.lineJoin='round';
+  c.beginPath();c.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)c.lineTo(pts[i][0],pts[i][1]);c.stroke();}
+function label(c,t,x,y){c.font='bold 9px "Courier New",monospace';c.textAlign='center';
+  c.lineWidth=3;c.strokeStyle='rgba(0,0,0,.85)';c.strokeText(t,x,y);c.fillStyle='#ffe9a8';c.fillText(t,x,y);}
+
+/* ---------- Construcción del mapa (offscreen) ---------- */
+function buildMap(){
+  const m=document.createElement('canvas');m.width=W;m.height=H;
+  const g=m.getContext('2d');g.imageSmoothingEnabled=false;
+
+  // suelo base
+  rect(g,0,0,W,H,'#2f5a2f');
+  // parches de tierra/vegetación
+  for(let i=0;i<70;i++){
+    const x=(i*97)%W, y=(i*53)%H;
+    rect(g,x,y,18,18, (i%3===0)?'#356635':'#2a4f2a');
+  }
+
+  // manzanas de la ciudad
+  const roofPal=['#9a8b6a','#8a7b5a','#a89878','#7d7158','#b0a384','#857a5e'];
+  const cell=42, gap=9;
+  let n=0;
+  for(let y=18;y<H-26;y+=cell){
+    for(let x=18;x<W-18;x+=cell){
+      n++;
+      const w=cell-gap-((n*7)%5), h=cell-gap-((n*11)%5);
+      g.fillStyle=roofPal[n%roofPal.length];
+      g.fillRect(x,y,w,h);
+      rect(g,x,y+h-3,w,3,'rgba(0,0,0,.20)');     // sombra inferior
+      rect(g,x+w-3,y,3,h,'rgba(0,0,0,.20)');     // sombra derecha
+      rect(g,x+2,y+2,w-4,2,'rgba(255,255,255,.07)'); // brillo techo
+    }
+  }
+
+  // avenidas
+  ROADS.forEach(rd=>{poly(g,rd,7,'#5a5a52');});
+  ROADS.forEach(rd=>{poly(g,rd,5,'#6b6b60');});
+  g.setLineDash([7,7]);ROADS.forEach(rd=>{poly(g,rd,1,'#cfcf9a');});g.setLineDash([]);
+
+  // ríos: banco arenoso + agua + reflejo
+  [RIVER_HUMAYA,RIVER_TAMAZULA,RIVER_CULIACAN].forEach(rv=>{
+    poly(g,rv,30,'#5f6a44');   // ribera
+    poly(g,rv,24,'#2f6fa0');   // agua
+    poly(g,rv,12,'#3f8fc0');   // centro
+    poly(g,rv,4,'rgba(190,230,255,.4)'); // reflejo
+  });
+
+  // puentes donde cruzan avenidas
+  function bridge(x,y){rect(g,x-16,y-7,32,14,'#7a6a4a');rect(g,x-16,y-7,32,2,'#9a8a64');rect(g,x-16,y+5,32,2,'#5a4a30');
+    for(let i=-12;i<=12;i+=6)rect(g,x+i,y-7,2,14,'#5a4a30');}
+  bridge(240,185); bridge(434,185); bridge(355,272);
+
+  // árboles dispersos en zonas verdes
+  for(let i=0;i<30;i++){
+    const x=30+((i*131)%(W-60)), y=30+((i*71)%(H-60));
+    // sólo si no cae sobre manzana clara (aprox): dibuja igual, da textura de parque
+    if((i*37)%5<2){circ(g,x,y,4,'#1f4a1f');circ(g,x-1,y-1,2,'#2f6a2f');}
+  }
+
+  // landmarks
+  LANDMARKS.forEach(l=>{drawLandmark(g,l);});
+
+  // etiquetas (encima de todo el mapa)
+  LANDMARKS.forEach(l=>{label(g,l.name,l.x,l.y+l.r+11);});
+
+  return m;
+}
+
+function drawLandmark(g,l){
+  const x=l.x,y=l.y;
+  switch(l.type){
+    case "catedral":{
+      rect(g,x-13,y-4,26,16,'#e8d8b0');           // nave
+      rect(g,x-13,y-14,7,12,'#ded0a4');rect(g,x+6,y-14,7,12,'#ded0a4'); // torres
+      rect(g,x-13,y-18,7,4,'#b89a5a');rect(g,x+6,y-18,7,4,'#b89a5a');   // cúpulas
+      rect(g,x-10,y-22,1,4,'#fff');rect(g,x-11,y-21,3,1,'#fff');        // cruz izq
+      rect(g,x+8,y-22,1,4,'#fff');rect(g,x+7,y-21,3,1,'#fff');          // cruz der
+      rect(g,x-2,y-2,4,14,'#8a6a3a');                                   // puerta
+      break;}
+    case "mercado":{
+      rect(g,x-15,y-9,30,20,'#9a9a92');
+      for(let i=-15;i<15;i+=6){rect(g,x+i,y-13,6,5,(i/6)%2?'#cc4444':'#e8e8e8');} // toldos
+      rect(g,x-12,y-3,5,8,'#5a4a30');rect(g,x-3,y-3,5,8,'#5a4a30');rect(g,x+6,y-3,5,8,'#5a4a30');
+      break;}
+    case "lomita":{
+      // cerro
+      g.fillStyle='#3a6a3a';g.beginPath();g.moveTo(x-22,y+14);g.lineTo(x,y-12);g.lineTo(x+22,y+14);g.closePath();g.fill();
+      g.fillStyle='#4f8a4f';g.beginPath();g.moveTo(x-12,y+4);g.lineTo(x,y-12);g.lineTo(x+12,y+4);g.closePath();g.fill();
+      // capilla piramidal
+      g.fillStyle='#f0ead8';g.beginPath();g.moveTo(x-7,y-4);g.lineTo(x,y-16);g.lineTo(x+7,y-4);g.closePath();g.fill();
+      rect(g,x,y-22,1,5,'#fff');rect(g,x-1,y-21,3,1,'#fff'); // cruz
+      break;}
+    case "estadio":{
+      g.fillStyle='#7a7a72';g.beginPath();g.ellipse(x,y,20,15,0,0,Math.PI*2);g.fill(); // gradas
+      g.fillStyle='#3f8f3f';g.beginPath();g.ellipse(x,y,13,9,0,0,Math.PI*2);g.fill();  // campo
+      rect(g,x-2,y-2,4,4,'#d8b070'); // diamante
+      circ(g,x,y,2,'#ffffff');
+      break;}
+    case "parque":{
+      rect(g,x-18,y-12,36,24,'#357535');
+      for(let i=0;i<8;i++){const tx=x-14+((i*131)%28),ty=y-8+((i*71)%18);circ(g,tx,ty,4,'#1f4f1f');circ(g,tx-1,ty-1,2,'#3f8f3f');}
+      break;}
+    case "forum":{
+      rect(g,x-16,y-11,32,22,'#8fa0b0');           // edificio
+      rect(g,x-13,y-8,26,7,'#bfe0ff');             // ventanal
+      for(let i=-13;i<13;i+=4)rect(g,x+i,y-8,1,7,'#5f7f9f');
+      rect(g,x-16,y+5,32,6,'#5a5a5a');             // estacionamiento
+      break;}
+    case "centro":{
+      const cols=['#d88','#8cb','#dc8','#9ad'];
+      for(let i=0;i<4;i++)rect(g,x-14+i*7,y-6,6,12,cols[i]); // casitas coloniales
+      // kiosco
+      circ(g,x+12,y,5,'#cdbf8a');rect(g,x+11,y-7,2,4,'#8a6a3a');
+      break;}
+    case "humaya":{
+      // franja de río + vegetación (la niebla se dibuja en vivo encima)
+      rect(g,x-16,y-8,32,16,'#356a8a');
+      poly(g,[[x-16,y+2],[x+16,y-2]],3,'#5f9fc0');
+      circ(g,x-10,y-6,3,'#2f5f2f');circ(g,x+8,y+4,3,'#2f5f2f');
+      break;}
+    case "malecon":{
+      rect(g,x-16,y-3,32,7,'#c8b890');             // andador
+      for(let i=-14;i<14;i+=7){rect(g,x+i,y-9,1,6,'#888');circ(g,x+i,y-10,2,'#ffe07a');} // postes
+      circ(g,x-10,y+6,3,'#2f6a2f');circ(g,x+10,y+6,3,'#2f6a2f'); // palmeras
+      break;}
+  }
+}
+
+/* ---------- Estado del juego ---------- */
+function initState(){
+  return{
+    heli:{x:360,y:200,vx:0,vy:0},
+    rocha:{x:88,y:118,vx:1,vy:.7,tunneling:false,tunnelTimer:0,target:null,bubble:0,bubbleNext:120},
+    escorts:[
+      {x:60,y:100,shootTimer:0,hp:3},
+      {x:120,y:140,shootTimer:0,hp:3},
+    ],
+    bullets:[],
+    particles:[],
+    fuel:100,
+    captures:0,
+    alerts:0,
+    time:120,
+    level:1,
+    deploying:false,
+    deployTimer:0,
+    msg:"",
+    msgTimer:0,
+    tick:0,
+    miradorActive:false,
+  };
+}
+
+function startGame(){
+  document.getElementById('startScreen').style.display='none';
+  document.getElementById('gameOverScreen').style.display='none';
+  if(animFrame)cancelAnimationFrame(animFrame);
+  state=initState();
+  gameRunning=true;
+  loop();
+}
+
+function addMsg(m){state.msg=m;state.msgTimer=120;}
+
+/* ---------- Túneles de Rocha ---------- */
+function getNearestLandmark(obj){
+  let best=null,bd=1e9;
+  LANDMARKS.forEach((l,i)=>{const d=dist(obj,l);if(d<bd){bd=d;best=i;}});
+  return best;
+}
+function rochaTunnel(){
+  if(state.rocha.tunneling)return;
+  const cur=getNearestLandmark(state.rocha);
+  const options=TUNNELS.filter(t=>t[0]===cur||t[1]===cur).map(t=>t[0]===cur?t[1]:t[0]);
+  if(options.length===0)return;
+  const dest=options[(Math.random()*options.length)|0];
+  state.rocha.tunneling=true;
+  state.rocha.tunnelTimer=42;
+  state.rocha.target=LANDMARKS[dest];
+  state.rocha.bubble=90;
+  addMsg("¡Rocha se metió al túnel!");
+  for(let i=0;i<8;i++)state.particles.push({x:state.rocha.x,y:state.rocha.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:22,max:22,color:'#bcd'});
+}
+
+/* ---------- Loop ---------- */
+function loop(){
+  if(!gameRunning)return;
+  update();
+  draw();
+  animFrame=requestAnimationFrame(loop);
+}
+
+function update(){
+  state.tick++;
+  state.time-=1/60;
+  if(state.time<=0){return endGame(false,"Se acabó el tiempo. Rocha sigue libre.");}
+
+  const heli=state.heli, r=state.rocha;
+
+  // efectos de zona
+  let speedMult=1, inFog=false;
+  state.miradorActive=false;
+  LANDMARKS.forEach(l=>{
+    if(!l.fx)return;
+    const d=dist(heli,l);
+    if(l.fx==='refuel' && d<l.r+12){state.fuel=Math.min(100,state.fuel+0.28);if(state.tick%30<2)addMsg("Reabasteciendo combustible…");}
+    if(l.fx==='maze'   && d<l.r+16){speedMult=0.5;if(state.tick%40<2)addMsg("¡Laberinto del Mercado! Te frenas.");}
+    if(l.fx==='mirador'&& d<l.r+26){state.miradorActive=true;}
+  });
+
+  // combustible (consumo moderado)
+  state.fuel=Math.max(0,state.fuel-0.013);
+  if(state.fuel<=0){return endGame(false,"Te quedaste sin combustible.");}
+
+  // movimiento del helicóptero (joystick + teclado)
+  let ax=0,ay=0;
+  if(keys['ArrowLeft']||keys['a']||keys['A'])ax-=1;
+  if(keys['ArrowRight']||keys['d']||keys['D'])ax+=1;
+  if(keys['ArrowUp']||keys['w']||keys['W'])ay-=1;
+  if(keys['ArrowDown']||keys['s']||keys['S'])ay+=1;
+  ax=Math.max(-1,Math.min(1,ax+joyX));
+  ay=Math.max(-1,Math.min(1,ay+joyY));
+  const speed=2.4*speedMult;
+  heli.vx=heli.vx*0.82+ax*speed*0.18;
+  heli.vy=heli.vy*0.82+ay*speed*0.18;
+  heli.x=Math.max(12,Math.min(W-12,heli.x+heli.vx));
+  heli.y=Math.max(12,Math.min(H-12,heli.y+heli.vy));
+
+  // IA de Rocha
+  if(r.tunneling){
+    r.tunnelTimer--;
+    r.x+=(r.target.x-r.x)*0.16;
+    r.y+=(r.target.y-r.y)*0.16;
+    if(r.tunnelTimer<=0){r.tunneling=false;r.target=null;}
+  } else {
+    const spd=0.95+state.level*0.14;
+    const dh=dist(r,heli);
+    if(dh<140){
+      const a=Math.atan2(r.y-heli.y,r.x-heli.x);
+      r.vx+=Math.cos(a)*0.13;r.vy+=Math.sin(a)*0.13;
+      if(dh<90&&Math.random()<0.045)rochaTunnel();
+    } else if(state.tick%80===0){
+      r.vx=(Math.random()-.5)*2;r.vy=(Math.random()-.5)*2;
+    }
+    r.vx*=0.92;r.vy*=0.92;
+    const mv=Math.hypot(r.vx,r.vy);
+    if(mv>spd){r.vx=r.vx/mv*spd;r.vy=r.vy/mv*spd;}
+    r.x=Math.max(20,Math.min(W-20,r.x+r.vx));
+    r.y=Math.max(20,Math.min(H-20,r.y+r.vy));
+    const near=getNearestLandmark(r);
+    if(near!==null&&dist(r,LANDMARKS[near])<24&&Math.random()<0.014)rochaTunnel();
+
+    // globito "¿y las pruebas?"
+    r.bubbleNext--;
+    if(r.bubbleNext<=0){r.bubble=110;r.bubbleNext=180+((Math.random()*120)|0);}
+  }
+  if(r.bubble>0)r.bubble--;
+
+  // escoltas
+  state.escorts.forEach(e=>{
+    e.x+=(r.x-e.x)*0.045+(Math.random()-.5)*0.5;
+    e.y+=(r.y-e.y)*0.045+(Math.random()-.5)*0.5;
+    e.x=Math.max(6,Math.min(W-6,e.x));
+    e.y=Math.max(6,Math.min(H-6,e.y));
+    const dh=dist(e,heli);
+    if(dh<85){
+      e.shootTimer++;
+      if(e.shootTimer>45){
+        const a=Math.atan2(heli.y-e.y,heli.x-e.x);
+        state.bullets.push({x:e.x,y:e.y,vx:Math.cos(a)*4.2,vy:Math.sin(a)*4.2,life:55});
+        e.shootTimer=0;
+        state.alerts=Math.min(9,state.alerts+1);
+        addMsg("¡Escolta disparando!");
+      }
+    } else e.shootTimer=Math.max(0,e.shootTimer-1);
+  });
+
+  // balas
+  state.bullets=state.bullets.filter(b=>{
+    b.x+=b.vx;b.y+=b.vy;b.life--;
+    if(dist(b,heli)<13){
+      state.fuel=Math.max(0,state.fuel-10);
+      addMsg("¡Impacto! Pierdes combustible.");
+      for(let i=0;i<10;i++)state.particles.push({x:heli.x,y:heli.y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:26,max:26,color:'#ff8844'});
+      return false;
+    }
+    return b.life>0&&b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10;
+  });
+
+  // desplegar soldado
+  if(deployEdge){deployEdge=false;
+    if(!state.deploying&&state.fuel>8&&dist(heli,r)<70){
+      state.deploying=true;state.deployTimer=55;addMsg("Desplegando soldado…");
+    } else if(!state.deploying){
+      addMsg("Acércate más a Rocha para desplegar.");
+    }
+  }
+  if(state.deploying){
+    state.deployTimer--;
+    if(state.deployTimer<=0){
+      state.deploying=false;
+      if(dist(heli,r)<78&&!r.tunneling){
+        state.captures++;
+        for(let i=0;i<16;i++)state.particles.push({x:r.x,y:r.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:38,max:38,color:'#77ff77'});
+        addMsg("¡CAPTURADO! +1");
+        if(state.captures>=3)return endGame(true,"¡Misión cumplida! Por fin… ¿y el Rocha? ¡Capturado!");
+        // reubicar en un punto aleatorio
+        const L=LANDMARKS[(Math.random()*LANDMARKS.length)|0];
+        r.x=L.x;r.y=L.y;r.vx=0;r.vy=0;r.tunneling=false;r.target=null;r.bubble=0;r.bubbleNext=90;
+        state.escorts.forEach((e,i)=>{e.x=L.x+(i?-30:30);e.y=L.y+(i?-20:20);e.shootTimer=0;});
+        state.alerts=Math.max(0,state.alerts-1);
+        if(state.captures===1)state.level=2;
+        if(state.captures===2){state.level=3;state.escorts.push({x:L.x+50,y:L.y,shootTimer:0,hp:3});}
+      } else {
+        addMsg(r.tunneling?"¡Se escapó por el túnel!":"Falló: estaba muy lejos.");
+      }
+    }
+  }
+
+  // partículas
+  state.particles=state.particles.filter(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.04;p.life--;return p.life>0;});
+
+  if(state.msgTimer>0)state.msgTimer--;
+
+  // HUD
+  document.getElementById('hTimer').textContent=Math.ceil(state.time);
+  document.getElementById('hCaptures').textContent=state.captures;
+  document.getElementById('hAlerts').textContent=state.alerts;
+  document.getElementById('hLevel').textContent=state.level;
+  const ff=document.getElementById('fuelFill');
+  ff.style.width=state.fuel+'%';
+  ff.style.background=state.fuel>40?'#5fcf5f':state.fuel>18?'#e0c040':'#e05050';
+}
+
+function endGame(win,msg){
+  gameRunning=false;
+  if(animFrame)cancelAnimationFrame(animFrame);
+  document.getElementById('gameOverScreen').style.display='flex';
+  document.getElementById('goTitle').textContent=win?"🏆 MISIÓN CUMPLIDA":"MISIÓN FALLIDA";
+  document.getElementById('goMsg').textContent=msg;
+}
+
+/* ---------- Dibujo de entidades ---------- */
+function drawHeli(){
+  const h=state.heli, frame=(state.tick>>2)&1;
+  rect(ctx,h.x-11,h.y-5,22,11,'#3f7f3f');
+  rect(ctx,h.x-8,h.y-8,16,6,'#356b35');
+  rect(ctx,h.x-3,h.y-7,7,5,'#9fe0ff');        // cabina
+  rect(ctx,h.x+11,h.y-2,9,3,'#3f7f3f');       // cola
+  rect(ctx,h.x+18,h.y-6,3,7,'#356b35');
+  rect(ctx,h.x-9,h.y+5,3,3,'#2a2a2a');rect(ctx,h.x+6,h.y+5,3,3,'#2a2a2a'); // patines
+  // rotor
+  ctx.strokeStyle='#cfe9ff';ctx.lineWidth=2;ctx.beginPath();
+  ctx.moveTo(h.x-(frame?13:8),h.y-9);ctx.lineTo(h.x+(frame?13:8),h.y-9);ctx.stroke();
+  circ(ctx,h.x,h.y-9,1.5,'#fff');
+  if(state.deploying){
+    const prog=1-(state.deployTimer/55);
+    ctx.strokeStyle='#ffd34d';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(h.x,h.y+6);ctx.lineTo(h.x,h.y+6+prog*22);ctx.stroke();
+    rect(ctx,h.x-2,h.y+6+prog*22,4,5,'#3f7f3f');           // soldado
+    rect(ctx,h.x-1,h.y+4+prog*22,2,2,'#d9a878');
+  }
+}
+
+function drawRocha(){
+  const r=state.rocha;
+  if(r.tunneling)ctx.globalAlpha=0.35+0.3*Math.sin(state.tick*0.3);
+  // guayabera (camisa clara) y pantalón
+  rect(ctx,r.x-7,r.y+7,5,5,'#3a3a44');rect(ctx,r.x+2,r.y+7,5,5,'#3a3a44');
+  rect(ctx,r.x-7,r.y-2,14,11,'#f1ede0');
+  rect(ctx,r.x-7,r.y-2,2,11,'#dcd6c4');rect(ctx,r.x+5,r.y-2,2,11,'#dcd6c4');
+  rect(ctx,r.x-1,r.y-2,2,9,'#d8d2c0');                 // botonadura
+  // cabeza
+  rect(ctx,r.x-5,r.y-12,10,11,'#d9a878');
+  // cabello cano
+  rect(ctx,r.x-6,r.y-15,12,4,'#e2e2e2');
+  rect(ctx,r.x-6,r.y-12,2,4,'#dcdcdc');rect(ctx,r.x+4,r.y-12,2,4,'#dcdcdc');
+  // lentes negros
+  rect(ctx,r.x-5,r.y-8,4,3,'#111');rect(ctx,r.x+1,r.y-8,4,3,'#111');rect(ctx,r.x-1,r.y-7,2,1,'#111');
+  // sonrisa
+  rect(ctx,r.x-2,r.y-3,4,1,'#9a5030');
+  if(r.tunneling){ctx.fillStyle='#7ac0ff';ctx.font='7px "Courier New",monospace';ctx.textAlign='center';ctx.fillText('TÚNEL',r.x,r.y-20);}
+  ctx.globalAlpha=1;
+  // globito
+  if(r.bubble>0)drawBubble(r.x,r.y-18,"¿y las pruebas?");
+}
+
+function drawBubble(x,y,text){
+  ctx.font='bold 9px "Courier New",monospace';ctx.textAlign='center';
+  const w=ctx.measureText(text).width+12, h=15;
+  let bx=x-w/2, by=y-h-6;
+  bx=Math.max(4,Math.min(W-w-4,bx)); by=Math.max(4,by);
+  ctx.fillStyle='#ffffff';ctx.strokeStyle='#222';ctx.lineWidth=1;
+  ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(bx,by,w,h,4);else ctx.rect(bx,by,w,h);
+  ctx.fill();ctx.stroke();
+  // cola
+  ctx.beginPath();ctx.moveTo(x-4,by+h);ctx.lineTo(x+4,by+h);ctx.lineTo(x,by+h+6);ctx.closePath();
+  ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#222';ctx.stroke();
+  ctx.fillStyle='#a01818';ctx.fillText(text,bx+w/2,by+11);
+}
+
+function drawEscorts(){
+  state.escorts.forEach(e=>{
+    rect(ctx,e.x-6,e.y-4,12,9,'#8a2a2a');
+    rect(ctx,e.x-4,e.y-7,8,5,'#6a1a1a');
+    rect(ctx,e.x-3,e.y-6,6,3,'#caa');
+    rect(ctx,e.x-6,e.y+4,3,2,'#222');rect(ctx,e.x+3,e.y+4,3,2,'#222');
+    const dh=dist(e,state.heli);
+    if(dh<85){ctx.strokeStyle='rgba(255,70,70,'+(0.25+0.2*Math.sin(state.tick*0.2))+')';ctx.lineWidth=1;
+      ctx.beginPath();ctx.arc(e.x,e.y,85,0,Math.PI*2);ctx.stroke();}
+  });
+}
+
+function drawBullets(){
+  state.bullets.forEach(b=>{rect(ctx,b.x-2,b.y-2,4,4,'#ff8844');rect(ctx,b.x-1,b.y-1,2,2,'#ffee00');});
+}
+
+function drawParticles(){
+  state.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life/p.max);rect(ctx,p.x-1,p.y-1,3,3,p.color);});
+  ctx.globalAlpha=1;
+}
+
+function drawFog(){
+  const l=LANDMARKS[6]; // Río Humaya
+  const grd=ctx.createRadialGradient(l.x,l.y,8,l.x,l.y,70);
+  grd.addColorStop(0,'rgba(205,214,224,0.65)');
+  grd.addColorStop(0.6,'rgba(205,214,224,0.4)');
+  grd.addColorStop(1,'rgba(205,214,224,0)');
+  ctx.fillStyle=grd;ctx.beginPath();ctx.arc(l.x,l.y,70,0,Math.PI*2);ctx.fill();
+}
+
+function drawMirador(){
+  if(!state.miradorActive)return;
+  const r=state.rocha, pulse=4+2*Math.sin(state.tick*0.25);
+  ctx.strokeStyle='#ff5a5a';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(r.x,r.y,16+pulse,0,Math.PI*2);ctx.stroke();
+  // flecha hacia abajo
+  ctx.fillStyle='#ff5a5a';ctx.beginPath();
+  ctx.moveTo(r.x-5,r.y-30);ctx.lineTo(r.x+5,r.y-30);ctx.lineTo(r.x,r.y-23);ctx.closePath();ctx.fill();
+}
+
+function drawCaptureMeter(){
+  const d=dist(state.heli,state.rocha);
+  if(d<110&&!state.rocha.tunneling){
+    const pct=1-d/110, h=state.heli;
+    rect(ctx,h.x-23,h.y-24,46,6,'rgba(0,0,0,.55)');
+    rect(ctx,h.x-23,h.y-24,46*pct,6,pct>0.55?'#77ff77':'#ff9944');
+    ctx.strokeStyle='#fff';ctx.lineWidth=0.5;ctx.strokeRect(h.x-23,h.y-24,46,6);
+    ctx.fillStyle='#fff';ctx.font='7px "Courier New",monospace';ctx.textAlign='center';
+    ctx.fillText(pct>0.55?'¡CAPTURAR!':'acércate más',h.x,h.y-27);
+  }
+}
+
+function drawMsg(){
+  if(state.msgTimer<=0)return;
+  ctx.font='bold 11px "Courier New",monospace';ctx.textAlign='center';
+  const w=ctx.measureText(state.msg).width+16;
+  rect(ctx,W/2-w/2,H-26,w,17,'rgba(0,0,0,.6)');
+  ctx.fillStyle='#ffd34d';ctx.fillText(state.msg,W/2,H-14);
+}
+
+function draw(){
+  ctx.drawImage(mapCanvas,0,0);
+  drawEscorts();drawBullets();drawRocha();drawHeli();drawParticles();
+  drawFog();
+  drawMirador();drawCaptureMeter();drawMsg();
+  // scanlines + viñeta retro
+  ctx.fillStyle='rgba(0,0,0,0.05)';
+  for(let y=0;y<H;y+=2)ctx.fillRect(0,y,W,1);
+  const vg=ctx.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,H*0.85);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.35)');
+  ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+}
+
+/* ---------- Entrada ---------- */
+document.addEventListener('keydown',e=>{
+  keys[e.key]=true;
+  if(e.key===' '){e.preventDefault();if(!e.repeat)deployEdge=true;}
+});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+
+// Joystick
+const joy=document.getElementById('joy'), knob=document.getElementById('joyKnob');
+let joyId=null,joyCx=0,joyCy=0;
+function knobReset(){joyX=0;joyY=0;knob.style.transform='translate(-50%,-50%)';}
+function knobMove(px,py){
+  let dx=px-joyCx, dy=py-joyCy; const max=44, d=Math.hypot(dx,dy);
+  if(d>max){dx=dx/d*max;dy=dy/d*max;}
+  joyX=dx/max;joyY=dy/max;
+  knob.style.transform=`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+joy.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];joyId=t.identifier;
+  const r=joy.getBoundingClientRect();joyCx=r.left+r.width/2;joyCy=r.top+r.height/2;knobMove(t.clientX,t.clientY);},{passive:false});
+window.addEventListener('touchmove',e=>{if(joyId===null)return;
+  for(const t of e.changedTouches)if(t.identifier===joyId){e.preventDefault();knobMove(t.clientX,t.clientY);}},{passive:false});
+window.addEventListener('touchend',e=>{for(const t of e.changedTouches)if(t.identifier===joyId){joyId=null;knobReset();}});
+window.addEventListener('touchcancel',()=>{joyId=null;knobReset();});
+
+// Botón de captura
+const btnA=document.getElementById('btnA');
+btnA.addEventListener('touchstart',e=>{e.preventDefault();deployEdge=true;btnA.classList.add('act');},{passive:false});
+btnA.addEventListener('touchend',e=>{e.preventDefault();btnA.classList.remove('act');},{passive:false});
+btnA.addEventListener('mousedown',e=>{e.preventDefault();deployEdge=true;btnA.classList.add('act');});
+window.addEventListener('mouseup',()=>btnA.classList.remove('act'));
+
+/* ---------- Responsive / orientación ---------- */
+function resize(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const scale=Math.min(vw/W, vh/H);
+  canvas.style.width=Math.round(W*scale)+'px';
+  canvas.style.height=Math.round(H*scale)+'px';
+  const portrait=vh>vw;
+  document.getElementById('rotate').style.display=(isTouch&&portrait)?'flex':'none';
+}
+window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,200));
+
+/* ---------- Init ---------- */
+mapCanvas=buildMap();
+if(isTouch){joy.style.display='block';btnA.style.display='flex';
+  document.getElementById('ctrlText').textContent='Joystick para volar · botón para desplegar soldado';}
+resize();
+// pantalla inicial de fondo
+ctx.drawImage(mapCanvas,0,0);
+</script>
+</body>
+</html>
