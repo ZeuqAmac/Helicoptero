@@ -4,15 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>¿Y el Rocha?</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14301a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="¿Y el Rocha?">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
-html,body{height:100%;width:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace;touch-action:none;overscroll-behavior:none}
-#game{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000}
+html,body{height:100%;width:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace;touch-action:none;overscroll-behavior:none;position:fixed;inset:0}
+#game{position:fixed;top:0;left:0;width:100vw;height:100vh;height:100dvh;display:flex;align-items:center;justify-content:center;background:#000}
 canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;background:#0c160c;box-shadow:0 0 0 2px #000}
 
 /* HUD */
 #hud{position:fixed;top:0;left:0;width:100%;display:flex;gap:6px;justify-content:center;align-items:center;
-  padding:5px 6px;flex-wrap:wrap;z-index:5;pointer-events:none}
+  padding:calc(4px + env(safe-area-inset-top)) calc(40px + env(safe-area-inset-right)) 4px calc(6px + env(safe-area-inset-left));
+  flex-wrap:wrap;z-index:5;pointer-events:none}
 .chip{background:rgba(10,22,10,0.82);border:1px solid #2f5f2f;border-radius:4px;padding:3px 8px;
   font-size:11px;line-height:1;color:#bfe6bf;letter-spacing:.5px;white-space:nowrap}
 .chip b{color:#ffd34d;font-weight:700}
@@ -21,13 +30,13 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
 #fuelFill{height:100%;width:100%;background:#5fcf5f;transition:width .1s linear}
 
 /* Touch controls */
-#joy{position:fixed;left:20px;bottom:20px;width:120px;height:120px;border-radius:50%;
+#joy{position:fixed;left:calc(20px + env(safe-area-inset-left));bottom:calc(18px + env(safe-area-inset-bottom));width:120px;height:120px;border-radius:50%;
   background:radial-gradient(circle,rgba(20,40,20,.55),rgba(10,20,10,.35));border:2px solid rgba(120,200,120,.45);
   z-index:6;display:none;touch-action:none}
 #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#7fd47f,#2f7f2f);border:2px solid #bfe6bf;
   transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.5)}
-#btnA{position:fixed;right:24px;bottom:26px;width:104px;height:104px;border-radius:50%;
+#btnA{position:fixed;right:calc(24px + env(safe-area-inset-right));bottom:calc(24px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#ffe07a,#c98a18);border:3px solid #fff3c0;
   z-index:6;display:none;align-items:center;justify-content:center;text-align:center;
   color:#3a2a00;font-weight:700;font-size:13px;line-height:1.05;box-shadow:0 3px 8px rgba(0,0,0,.55);touch-action:none}
@@ -56,7 +65,7 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
 #goStats{display:flex;gap:22px;margin:2px 0;color:#bfe6bf;font-size:13px;letter-spacing:1px}
 #goStats b{color:#ffd34d;font-size:18px;display:block}
 .hi{color:#ffd34d}
-#btnMute{position:fixed;top:6px;right:8px;z-index:7;width:34px;height:34px;border-radius:6px;
+#btnMute{position:fixed;top:calc(6px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));z-index:7;width:34px;height:34px;border-radius:6px;
   background:rgba(10,22,10,.82);border:1px solid #2f5f2f;color:#bfe6bf;font-size:16px;cursor:pointer;line-height:1}
 
 /* Rotate prompt */
@@ -109,6 +118,8 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
       <button class="diffBtn" data-d="dificil" onclick="setDiff('dificil')">DIFÍCIL</button>
     </div>
     <button class="btn" onclick="startGame()">▶ INICIAR MISIÓN</button>
+    <button class="btn" id="btnInstall" style="display:none;font-size:13px;padding:7px 18px" onclick="installApp()">📲 Instalar app</button>
+    <p class="ctrls" id="installHint" style="display:none">Para instalar: toca <b class="hi">Compartir</b> y luego <b class="hi">Añadir a inicio</b></p>
     <p class="ctrls" id="ctrlText">WASD / flechas · ESPACIO para desplegar</p>
     <p class="ctrls">Récord: <b class="hi" id="startHigh">0</b> pts</p>
   </div>
@@ -418,6 +429,7 @@ function startGame(){
   state=initState();
   gameRunning=true;
   startRotor();
+  try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}
   loop();
 }
 
@@ -790,7 +802,9 @@ window.addEventListener('mouseup',()=>btnA.classList.remove('act'));
 
 /* ---------- Responsive / orientación ---------- */
 function resize(){
-  const vw=window.innerWidth, vh=window.innerHeight;
+  const vv=window.visualViewport;
+  const vw=vv?vv.width:window.innerWidth;
+  const vh=vv?vv.height:window.innerHeight;
   const scale=Math.min(vw/W, vh/H);
   canvas.style.width=Math.round(W*scale)+'px';
   canvas.style.height=Math.round(H*scale)+'px';
@@ -799,11 +813,35 @@ function resize(){
 }
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,200));
+if(window.visualViewport){window.visualViewport.addEventListener('resize',resize);window.visualViewport.addEventListener('scroll',resize);}
 
 // Botón de silencio
 const btnMute=document.getElementById('btnMute');
 btnMute.textContent=muted?'🔇':'🔊';
 btnMute.addEventListener('click',()=>{initAudio();if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();setMuted(!muted);if(!muted)SFX.ui();});
+
+/* ---------- PWA ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+let deferredPrompt=null;
+const inStandalone=window.navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();deferredPrompt=e;
+  const b=document.getElementById('btnInstall');if(b)b.style.display='inline-block';
+});
+window.addEventListener('appinstalled',()=>{
+  deferredPrompt=null;const b=document.getElementById('btnInstall');if(b)b.style.display='none';
+});
+function installApp(){
+  if(!deferredPrompt)return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.finally(()=>{deferredPrompt=null;
+    const b=document.getElementById('btnInstall');if(b)b.style.display='none';});
+}
+// iOS: no hay prompt; mostrar instrucción de "Añadir a inicio"
+const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+if(isIOS&&!inStandalone){const h=document.getElementById('installHint');if(h)h.style.display='block';}
 
 /* ---------- Init ---------- */
 mapCanvas=buildMap();
