@@ -36,12 +36,24 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
 #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#7fd47f,#2f7f2f);border:2px solid #bfe6bf;
   transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(0,0,0,.5)}
-#btnA{position:fixed;right:calc(24px + env(safe-area-inset-right));bottom:calc(24px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;
+#btnA{position:fixed;right:calc(24px + env(safe-area-inset-right));bottom:calc(24px + env(safe-area-inset-bottom));width:100px;height:100px;border-radius:50%;
   background:radial-gradient(circle at 35% 30%,#ffe07a,#c98a18);border:3px solid #fff3c0;
   z-index:6;display:none;align-items:center;justify-content:center;text-align:center;
   color:#3a2a00;font-weight:700;font-size:13px;line-height:1.05;box-shadow:0 3px 8px rgba(0,0,0,.55);touch-action:none}
 #btnA.act{transform:scale(.92);filter:brightness(1.15)}
 #btnA small{display:block;font-size:9px;font-weight:700;opacity:.8}
+#btnFire{position:fixed;right:calc(36px + env(safe-area-inset-right));bottom:calc(134px + env(safe-area-inset-bottom));width:82px;height:82px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#ff8a8a,#b51d1d);border:3px solid #ffd0d0;
+  z-index:6;display:none;align-items:center;justify-content:center;text-align:center;
+  color:#3a0000;font-weight:700;font-size:12px;line-height:1.05;box-shadow:0 3px 8px rgba(0,0,0,.55);touch-action:none}
+#btnFire.act{transform:scale(.92);filter:brightness(1.15)}
+#btnFire small{display:block;font-size:9px;font-weight:700;opacity:.8}
+#btnAlt{position:fixed;left:calc(22px + env(safe-area-inset-left));bottom:calc(150px + env(safe-area-inset-bottom));width:118px;height:42px;border-radius:21px;
+  background:linear-gradient(180deg,#2a4a78,#15294a);border:2px solid #7fb0e6;
+  z-index:6;display:none;align-items:center;justify-content:center;text-align:center;
+  color:#dcecff;font-weight:700;font-size:13px;letter-spacing:1px;line-height:1;box-shadow:0 3px 8px rgba(0,0,0,.55);touch-action:none}
+#btnAlt.act{filter:brightness(1.2)}
+#btnAlt span{font-size:16px}
 
 /* Overlays */
 .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -98,22 +110,27 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
     <div class="chip">🎯 <b id="hCaptures">0</b>/3</div>
     <div class="chip" id="fuelWrap">⛽<div id="fuelBar"><div id="fuelFill"></div></div></div>
     <div class="chip">🚨 <b id="hAlerts">0</b></div>
+    <div class="chip">🚁 <b id="hAlt">ALTO</b></div>
     <div class="chip">NIVEL <b id="hLevel">1</b></div>
     <div class="chip">★ <b id="hScore">0</b></div>
   </div>
   <button id="btnMute" aria-label="sonido">🔊</button>
 
   <div id="joy"><div id="joyKnob"></div></div>
+  <div id="btnAlt"><span>⬇</span>&nbsp;BAJAR</div>
+  <div id="btnFire">DISPARAR<small>defensa</small></div>
   <div id="btnA">CAPTURAR<small>desplegar</small></div>
 
   <div class="screen" id="startScreen">
     <div id="startTop">
       <h1>¿Y EL ROCHA?</h1>
       <h2>OPERATIVO CULIACÁN</h2>
-      <p id="startTagline">Persíguelo en helicóptero por Culiacán · 3 capturas para ganar</p>
+      <p id="startTagline">Persíguelo en helicóptero por Culiacán · Sube para ver, baja para atacar · 3 capturas para ganar</p>
     </div>
     <div id="startPanel">
       <div id="legend">
+        <span>🚁 <b>Altitud</b>: sube/baja</span>
+        <span>🔫 <b>Defensa</b>: derriba escoltas</span>
         <span>🌫️ <b>Humaya</b>: niebla</span>
         <span>🧩 <b>Mercado</b>: laberinto</span>
         <span>⛽ <b>Tomateros/Forum</b>: recarga</span>
@@ -127,7 +144,7 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
       <button class="btn" onclick="startGame()">▶ INICIAR MISIÓN</button>
       <button class="btn" id="btnInstall" style="display:none;font-size:13px;padding:7px 18px" onclick="installApp()">📲 Instalar app</button>
       <p class="ctrls" id="installHint" style="display:none">Para instalar: toca <b class="hi">Compartir</b> y luego <b class="hi">Añadir a inicio</b></p>
-      <p class="ctrls" id="ctrlText">WASD / flechas · ESPACIO para desplegar</p>
+      <p class="ctrls" id="ctrlText">WASD/flechas mover · SHIFT subir/bajar · F disparar · ESPACIO capturar</p>
       <p class="ctrls">Récord: <b class="hi" id="startHigh">0</b> pts</p>
     </div>
   </div>
@@ -179,15 +196,34 @@ const RIVER_HUMAYA=[[140,-10],[165,70],[205,150],[280,225],[347,256]];
 const RIVER_TAMAZULA=[[600,-10],[565,70],[480,150],[395,215],[347,256]];
 const RIVER_CULIACAN=[[347,256],[430,320],[560,420]];
 
-// Avenidas principales
+// Cuadrícula de avenidas: horizontales (Y) y verticales (X)
+const ROAD_YS=[110,185,240,300];
+const ROAD_XS=[150,320,430,560];
+const ROAD_X0=40, ROAD_X1=680, ROAD_Y0=30, ROAD_Y1=380;
 const ROADS=[
-  [[40,185],[680,185]],
-  [[320,30],[320,380]],
-  [[40,110],[680,110]],
-  [[40,300],[680,300]],
-  [[150,30],[150,380]],
-  [[560,30],[560,380]],
+  ...ROAD_YS.map(y=>[[ROAD_X0,y],[ROAD_X1,y]]),
+  ...ROAD_XS.map(x=>[[x,ROAD_Y0],[x,ROAD_Y1]]),
 ];
+
+// Grafo de calles: Rocha se mueve de nodo a nodo SIGUIENDO las avenidas
+let GRAPH={nodes:[],adj:[]};
+function buildRoadGraph(){
+  const nodes=[], idx={}, adj=[];
+  const NID=(x,y)=>{const k=x+','+y; if(k in idx)return idx[k]; const i=nodes.length; nodes.push({x,y}); idx[k]=i; adj[i]=[]; return i;};
+  const link=(a,b)=>{ if(a===b)return; if(!adj[a].includes(b))adj[a].push(b); if(!adj[b].includes(a))adj[b].push(a); };
+  // recorre cada avenida horizontal conectando sus cruces consecutivos
+  ROAD_YS.forEach(y=>{
+    const xs=[ROAD_X0,...ROAD_XS,ROAD_X1].sort((a,b)=>a-b);
+    let prev=null; xs.forEach(x=>{const n=NID(x,y); if(prev!==null)link(prev,n); prev=n;});
+  });
+  // y cada avenida vertical (los cruces se comparten por dedupe → grafo conectado)
+  ROAD_XS.forEach(x=>{
+    const ys=[ROAD_Y0,...ROAD_YS,ROAD_Y1].sort((a,b)=>a-b);
+    let prev=null; ys.forEach(y=>{const n=NID(x,y); if(prev!==null)link(prev,n); prev=n;});
+  });
+  return {nodes,adj};
+}
+function nearestNode(p){let b=0,bd=1e9; GRAPH.nodes.forEach((n,i)=>{const d=(n.x-p.x)**2+(n.y-p.y)**2; if(d<bd){bd=d;b=i;}}); return b;}
 
 let state={};
 let keys={};
@@ -197,6 +233,8 @@ let mapCanvas=null;
 
 let joyX=0,joyY=0;       // -1..1 del joystick
 let deployEdge=false;    // petición puntual de desplegar
+let firing=false;        // arma defensiva sostenida
+const cam={x:0,y:0,zoom:1}; // cámara (zoom según altitud)
 const isTouch = matchMedia('(pointer:coarse)').matches || ('ontouchstart' in window);
 
 /* ---------- LocalStorage seguro ---------- */
@@ -239,6 +277,7 @@ function beep(freq,dur,type='square',vol=0.3,slideTo=null){
 }
 const SFX={
   shoot(){beep(220,0.08,'square',0.15,90);},
+  heliShoot(){beep(880,0.05,'square',0.12,1400);},
   hit(){beep(150,0.25,'sawtooth',0.32,40);},
   capture(){beep(440,0.1,'square',0.28);setTimeout(()=>beep(660,0.1,'square',0.28),90);setTimeout(()=>beep(880,0.18,'square',0.28),180);},
   tunnel(){beep(520,0.22,'sine',0.22,150);},
@@ -283,41 +322,62 @@ function buildMap(){
   const m=document.createElement('canvas');m.width=W;m.height=H;
   const g=m.getContext('2d');g.imageSmoothingEnabled=false;
 
-  // suelo base
-  rect(g,0,0,W,H,'#2f5a2f');
-  // parches de tierra/vegetación
-  for(let i=0;i<70;i++){
-    const x=(i*97)%W, y=(i*53)%H;
-    rect(g,x,y,18,18, (i%3===0)?'#356635':'#2a4f2a');
+  // --- suelo base con degradado suave ---
+  const base=g.createLinearGradient(0,0,0,H);
+  base.addColorStop(0,'#3b6b3f');base.addColorStop(1,'#2b5230');
+  g.fillStyle=base;g.fillRect(0,0,W,H);
+
+  // textura de vegetación / tierra
+  for(let i=0;i<170;i++){
+    const x=(i*89)%W, y=(i*149)%H, t=(i*37)%7;
+    g.fillStyle=t<2?'#3a6a3a':t<4?'#2a4f2a':t<5?'#47743f':'#335a2f';
+    g.fillRect(x,y,10+(t%3)*4,8+(t%2)*5);
   }
 
-  // manzanas de la ciudad
-  const roofPal=['#9a8b6a','#8a7b5a','#a89878','#7d7158','#b0a384','#857a5e'];
-  const cell=42, gap=9;
+  // distritos: tintes suaves por cuadrante (da carácter sin perder contraste)
+  g.globalAlpha=0.10;
+  g.fillStyle='#6a6f3a';g.fillRect(0,0,W/2,H/2);
+  g.fillStyle='#3a6a6a';g.fillRect(W/2,0,W/2,H/2);
+  g.fillStyle='#6a5a3a';g.fillRect(0,H/2,W/2,H/2);
+  g.fillStyle='#5a6a3a';g.fillRect(W/2,H/2,W/2,H/2);
+  g.globalAlpha=1;
+
+  // --- manzanas con extrusión (luz arriba-izq, sombra abajo-der) ---
+  const roofPal=['#c9b58a','#b9a578','#d4c49a','#a89878','#c2b488','#b0a07a'];
+  const cell=46, gap=12;
   let n=0;
-  for(let y=18;y<H-26;y+=cell){
-    for(let x=18;x<W-18;x+=cell){
+  for(let y=20;y<H-30;y+=cell){
+    for(let x=22;x<W-20;x+=cell){
       n++;
-      const w=cell-gap-((n*7)%5), h=cell-gap-((n*11)%5);
-      g.fillStyle=roofPal[n%roofPal.length];
-      g.fillRect(x,y,w,h);
-      rect(g,x,y+h-3,w,3,'rgba(0,0,0,.20)');     // sombra inferior
-      rect(g,x+w-3,y,3,h,'rgba(0,0,0,.20)');     // sombra derecha
-      rect(g,x+2,y+2,w-4,2,'rgba(255,255,255,.07)'); // brillo techo
+      if((n*13)%9===0){ // huecos = plazas / parques
+        rect(g,x,y,cell-gap,cell-gap,'#3a6f3a');
+        circ(g,x+8,y+8,3,'#1f4f1f');circ(g,x+20,y+15,3,'#1f4f1f');
+        continue;
+      }
+      const w=cell-gap-((n*7)%6), h=cell-gap-((n*11)%6), ht=2+((n*5)%4);
+      rect(g,x+ht,y+ht,w,h,'rgba(0,0,0,.22)');        // sombra proyectada
+      g.fillStyle=roofPal[n%roofPal.length];g.fillRect(x,y,w,h);
+      rect(g,x,y,w,2,'rgba(255,255,255,.16)');        // borde iluminado
+      rect(g,x,y+h-2,w,2,'rgba(0,0,0,.18)');
+      rect(g,x+w-2,y,2,h,'rgba(0,0,0,.15)');
+      g.fillStyle='rgba(70,80,100,.30)';              // ventanitas
+      for(let wy=y+4;wy<y+h-3;wy+=5)for(let wx=x+3;wx<x+w-3;wx+=5)g.fillRect(wx,wy,2,2);
     }
   }
 
-  // avenidas
-  ROADS.forEach(rd=>{poly(g,rd,7,'#5a5a52');});
-  ROADS.forEach(rd=>{poly(g,rd,5,'#6b6b60');});
-  g.setLineDash([7,7]);ROADS.forEach(rd=>{poly(g,rd,1,'#cfcf9a');});g.setLineDash([]);
+  // --- avenidas ---
+  ROADS.forEach(rd=>poly(g,rd,11,'#33332f'));   // bordillo oscuro
+  ROADS.forEach(rd=>poly(g,rd,8,'#55554c'));    // asfalto
+  ROADS.forEach(rd=>poly(g,rd,6,'#63635a'));    // centro de carril
+  g.setLineDash([8,8]);ROADS.forEach(rd=>poly(g,rd,1,'#e8e4a0'));g.setLineDash([]);
+  ROAD_XS.forEach(x=>ROAD_YS.forEach(y=>rect(g,x-5,y-5,10,10,'#5d5d54'))); // cruces
 
-  // ríos: banco arenoso + agua + reflejo
+  // ríos: ribera + agua + reflejo
   [RIVER_HUMAYA,RIVER_TAMAZULA,RIVER_CULIACAN].forEach(rv=>{
-    poly(g,rv,30,'#5f6a44');   // ribera
-    poly(g,rv,24,'#2f6fa0');   // agua
-    poly(g,rv,12,'#3f8fc0');   // centro
-    poly(g,rv,4,'rgba(190,230,255,.4)'); // reflejo
+    poly(g,rv,32,'#6b7349');
+    poly(g,rv,26,'#2f6fa0');
+    poly(g,rv,14,'#3f8fc0');
+    poly(g,rv,4,'rgba(200,235,255,.45)');
   });
 
   // puentes donde cruzan avenidas
@@ -325,18 +385,15 @@ function buildMap(){
     for(let i=-12;i<=12;i+=6)rect(g,x+i,y-7,2,14,'#5a4a30');}
   bridge(240,185); bridge(434,185); bridge(355,272);
 
-  // árboles dispersos en zonas verdes
-  for(let i=0;i<30;i++){
-    const x=30+((i*131)%(W-60)), y=30+((i*71)%(H-60));
-    // sólo si no cae sobre manzana clara (aprox): dibuja igual, da textura de parque
-    if((i*37)%5<2){circ(g,x,y,4,'#1f4a1f');circ(g,x-1,y-1,2,'#2f6a2f');}
+  // árboles dispersos
+  for(let i=0;i<40;i++){
+    const x=20+((i*131)%(W-40)), y=20+((i*71)%(H-40));
+    if((i*37)%5<2){circ(g,x,y,4,'#1f4a1f');circ(g,x-1,y-1,2,'#3f7a3f');}
   }
 
-  // landmarks
-  LANDMARKS.forEach(l=>{drawLandmark(g,l);});
-
-  // etiquetas (encima de todo el mapa)
-  LANDMARKS.forEach(l=>{label(g,l.name,l.x,l.y+l.r+11);});
+  // landmarks + etiquetas
+  LANDMARKS.forEach(l=>drawLandmark(g,l));
+  LANDMARKS.forEach(l=>label(g,l.name,l.x,l.y+l.r+11));
 
   return m;
 }
@@ -403,14 +460,18 @@ function drawLandmark(g,l){
 
 /* ---------- Estado del juego ---------- */
 function initState(){
+  const startNode=nearestNode({x:150,y:110});
   return{
-    heli:{x:360,y:200,vx:0,vy:0},
-    rocha:{x:88,y:118,vx:1,vy:.7,tunneling:false,tunnelTimer:0,target:null,bubble:0,bubbleNext:120},
+    heli:{x:360,y:200,vx:0,vy:0,alt:1,altTarget:1,face:0,fireTimer:0},
+    rocha:{x:GRAPH.nodes[startNode].x,y:GRAPH.nodes[startNode].y,vx:0,vy:0,
+           node:startNode,tnode:-1,prevNode:-1,
+           tunneling:false,tunnelTimer:0,target:null,bubble:0,bubbleNext:120},
     escorts:[
-      {x:60,y:100,shootTimer:0,hp:3},
-      {x:120,y:140,shootTimer:0,hp:3},
+      {x:60,y:100,shootTimer:0,hp:3,disabled:0},
+      {x:120,y:140,shootTimer:0,hp:3,disabled:0},
     ],
     bullets:[],
+    heliBullets:[],
     particles:[],
     fuel:100,
     captures:0,
@@ -435,6 +496,8 @@ function startGame(){
   initAudio();
   if(audioCtx&&audioCtx.state==='suspended')audioCtx.resume();
   state=initState();
+  firing=false;
+  updateAltBtn();
   gameRunning=true;
   startRotor();
   try{if(screen.orientation&&screen.orientation.lock)screen.orientation.lock('landscape').catch(()=>{});}catch(e){}
@@ -462,6 +525,31 @@ function rochaTunnel(){
   addMsg("¡Rocha se metió al túnel!");
   SFX.tunnel();
   for(let i=0;i<8;i++)state.particles.push({x:state.rocha.x,y:state.rocha.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:22,max:22,color:'#bcd'});
+}
+
+// Elige la siguiente esquina por la que escapará Rocha (siempre por una calle)
+function rochaPickNext(){
+  const r=state.rocha, heli=state.heli;
+  const nbrs=GRAPH.adj[r.node];
+  if(!nbrs||!nbrs.length){r.tnode=-1;return;}
+  const fleeing=dist(r,heli)<240;
+  let choice;
+  if(fleeing){
+    // toma la esquina que más lo aleja del helicóptero (sin devolverse si puede)
+    let best=-1,bd=-1;
+    for(const nb of nbrs){
+      if(nb===r.prevNode && nbrs.length>1)continue;
+      const n=GRAPH.nodes[nb], d=Math.hypot(n.x-heli.x,n.y-heli.y);
+      if(d>bd){bd=d;best=nb;}
+    }
+    choice=best;
+  } else {
+    // merodea: rumbo aleatorio evitando regresar por donde vino
+    const opts=nbrs.filter(nb=>nb!==r.prevNode);
+    const pool=opts.length?opts:nbrs;
+    choice=pool[(Math.random()*pool.length)|0];
+  }
+  r.prevNode=r.node; r.tnode=choice;
 }
 
 /* ---------- Loop ---------- */
@@ -494,6 +582,10 @@ function update(){
   state.fuel=Math.max(0,state.fuel-D.drain);
   if(state.fuel<=0){return endGame(false,"Te quedaste sin combustible.");}
 
+  // altitud: el helicóptero sube para ver más y baja para atacar/capturar
+  heli.alt+=(heli.altTarget-heli.alt)*0.08;
+  const low=heli.alt<0.45;   // a baja altura puedes atacar/capturar pero te disparan
+
   // movimiento del helicóptero (joystick + teclado)
   let ax=0,ay=0;
   if(keys['ArrowLeft']||keys['a']||keys['A'])ax-=1;
@@ -502,50 +594,51 @@ function update(){
   if(keys['ArrowDown']||keys['s']||keys['S'])ay+=1;
   ax=Math.max(-1,Math.min(1,ax+joyX));
   ay=Math.max(-1,Math.min(1,ay+joyY));
-  const speed=2.4*speedMult;
+  const speed=2.4*speedMult*(1+heli.alt*0.4);   // más veloz en las alturas
   heli.vx=heli.vx*0.82+ax*speed*0.18;
   heli.vy=heli.vy*0.82+ay*speed*0.18;
   heli.x=Math.max(12,Math.min(W-12,heli.x+heli.vx));
   heli.y=Math.max(12,Math.min(H-12,heli.y+heli.vy));
+  if(Math.hypot(heli.vx,heli.vy)>0.3)heli.face=Math.atan2(heli.vy,heli.vx);
 
-  // IA de Rocha
+  // IA de Rocha: huye por las calles, de esquina en esquina
   if(r.tunneling){
     r.tunnelTimer--;
     r.x+=(r.target.x-r.x)*0.16;
     r.y+=(r.target.y-r.y)*0.16;
-    if(r.tunnelTimer<=0){r.tunneling=false;r.target=null;}
+    if(r.tunnelTimer<=0){r.tunneling=false;r.target=null;r.node=nearestNode(r);r.prevNode=-1;r.tnode=-1;}
   } else {
-    const spd=(0.95+state.level*0.14)*D.rochaSpd;
-    const dh=dist(r,heli);
-    if(dh<140){
-      const a=Math.atan2(r.y-heli.y,r.x-heli.x);
-      r.vx+=Math.cos(a)*0.13;r.vy+=Math.sin(a)*0.13;
-      if(dh<90&&Math.random()<0.045*D.tunnel)rochaTunnel();
-    } else if(state.tick%80===0){
-      r.vx=(Math.random()-.5)*2;r.vy=(Math.random()-.5)*2;
+    const spd=(0.85+state.level*0.12)*D.rochaSpd;
+    if(r.tnode<0)rochaPickNext();
+    const tn=GRAPH.nodes[r.tnode];
+    if(tn){
+      const dx=tn.x-r.x, dy=tn.y-r.y, d=Math.hypot(dx,dy);
+      if(d<=spd){r.x=tn.x;r.y=tn.y;r.node=r.tnode;rochaPickNext();}
+      else{r.x+=dx/d*spd;r.y+=dy/d*spd;}
     }
-    r.vx*=0.92;r.vy*=0.92;
-    const mv=Math.hypot(r.vx,r.vy);
-    if(mv>spd){r.vx=r.vx/mv*spd;r.vy=r.vy/mv*spd;}
-    r.x=Math.max(20,Math.min(W-20,r.x+r.vx));
-    r.y=Math.max(20,Math.min(H-20,r.y+r.vy));
-    const near=getNearestLandmark(r);
-    if(near!==null&&dist(r,LANDMARKS[near])<24&&Math.random()<0.014*D.tunnel)rochaTunnel();
-
+    // si el helicóptero lo arrincona estando bajo, se escabulle por un túnel
+    if(dist(r,heli)<70 && low && Math.random()<0.012*D.tunnel)rochaTunnel();
     // globito "¿y las pruebas?"
     r.bubbleNext--;
     if(r.bubbleNext<=0){r.bubble=110;r.bubbleNext=180+((Math.random()*120)|0);}
   }
   if(r.bubble>0)r.bubble--;
 
-  // escoltas
+  // escoltas: persiguen a Rocha y solo disparan si estás a baja altura
   state.escorts.forEach(e=>{
+    if(e.disabled>0){   // neutralizada: se retira un rato y vuelve
+      e.disabled--;
+      e.x+=(e.x-heli.x)*0.01; e.y+=(e.y-heli.y)*0.01;
+      e.x=Math.max(6,Math.min(W-6,e.x)); e.y=Math.max(6,Math.min(H-6,e.y));
+      if(e.disabled===0){e.hp=3;}
+      return;
+    }
     e.x+=(r.x-e.x)*0.045+(Math.random()-.5)*0.5;
     e.y+=(r.y-e.y)*0.045+(Math.random()-.5)*0.5;
     e.x=Math.max(6,Math.min(W-6,e.x));
     e.y=Math.max(6,Math.min(H-6,e.y));
     const dh=dist(e,heli);
-    if(dh<85){
+    if(dh<85 && low){
       e.shootTimer++;
       if(e.shootTimer>D.shoot){
         const a=Math.atan2(heli.y-e.y,heli.x-e.x);
@@ -558,10 +651,52 @@ function update(){
     } else e.shootTimer=Math.max(0,e.shootTimer-1);
   });
 
-  // balas
+  // arma defensiva del helicóptero (solo a baja altura)
+  if(heli.fireTimer>0)heli.fireTimer--;
+  if(firing && low && heli.fireTimer<=0 && state.fuel>1){
+    let tgt=null,bd=1e9;
+    state.escorts.forEach(e=>{if(e.disabled>0)return;const d=dist(e,heli);if(d<bd){bd=d;tgt=e;}});
+    const a=tgt?Math.atan2(tgt.y-heli.y,tgt.x-heli.x):heli.face;
+    state.heliBullets.push({x:heli.x,y:heli.y,vx:Math.cos(a)*6.4,vy:Math.sin(a)*6.4,life:48});
+    heli.fireTimer=9;
+    state.fuel=Math.max(0,state.fuel-0.15);
+    SFX.heliShoot();
+  }
+
+  // proyectiles del helicóptero: derriban balas enemigas y neutralizan escoltas
+  state.heliBullets=state.heliBullets.filter(b=>{
+    b.x+=b.vx;b.y+=b.vy;b.life--;
+    let consumed=false;
+    state.bullets=state.bullets.filter(eb=>{
+      if(!consumed&&dist(eb,b)<9){consumed=true;
+        for(let i=0;i<5;i++)state.particles.push({x:eb.x,y:eb.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:16,max:16,color:'#ffd34d'});
+        return false;}
+      return true;
+    });
+    if(consumed)return false;
+    for(const e of state.escorts){
+      if(e.disabled>0)continue;
+      if(dist(e,b)<11){
+        e.hp--;
+        for(let i=0;i<6;i++)state.particles.push({x:e.x,y:e.y,vx:(Math.random()-.5)*3.5,vy:(Math.random()-.5)*3.5,life:20,max:20,color:'#ff8844'});
+        if(e.hp<=0){
+          e.disabled=320;
+          state.alerts=Math.max(0,state.alerts-1);
+          state.score+=120;
+          addMsg("¡Escolta neutralizada! +120");
+          SFX.hit();
+          for(let i=0;i<12;i++)state.particles.push({x:e.x,y:e.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:30,max:30,color:'#ffcc44'});
+        }
+        return false;
+      }
+    }
+    return b.life>0&&b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10;
+  });
+
+  // balas enemigas (solo te dañan a baja altura; si subes, las esquivas)
   state.bullets=state.bullets.filter(b=>{
     b.x+=b.vx;b.y+=b.vy;b.life--;
-    if(dist(b,heli)<13){
+    if(low && dist(b,heli)<13){
       state.fuel=Math.max(0,state.fuel-D.dmg);
       state.score=Math.max(0,state.score-100);
       addMsg("¡Impacto! Pierdes combustible.");
@@ -572,12 +707,15 @@ function update(){
     return b.life>0&&b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10;
   });
 
-  // desplegar soldado
+  // desplegar soldado (requiere baja altura)
   if(deployEdge){deployEdge=false;
-    if(!state.deploying&&state.fuel>8&&dist(heli,r)<70){
-      state.deploying=true;state.deployTimer=55;addMsg("Desplegando soldado…");SFX.deploy();
-    } else if(!state.deploying){
-      addMsg("Acércate más a Rocha para desplegar.");
+    if(!state.deploying){
+      if(!low){addMsg("Desciende para capturar (baja altura).");}
+      else if(state.fuel>8&&dist(heli,r)<70){
+        state.deploying=true;state.deployTimer=55;addMsg("Desplegando soldado…");SFX.deploy();
+      } else {
+        addMsg("Acércate más a Rocha para desplegar.");
+      }
     }
   }
   if(state.deploying){
@@ -594,13 +732,15 @@ function update(){
         for(let i=0;i<16;i++)state.particles.push({x:r.x,y:r.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:38,max:38,color:'#77ff77'});
         addMsg("¡CAPTURADO! +"+gain+(sb>0?" (rápido +"+sb+")":""));
         if(state.captures>=3)return endGame(true,"¡Misión cumplida! Por fin… ¿y el Rocha? ¡Capturado!");
-        // reubicar en un punto aleatorio
+        // reaparece en una esquina cercana a un punto de interés aleatorio
         const L=LANDMARKS[(Math.random()*LANDMARKS.length)|0];
-        r.x=L.x;r.y=L.y;r.vx=0;r.vy=0;r.tunneling=false;r.target=null;r.bubble=0;r.bubbleNext=90;
-        state.escorts.forEach((e,i)=>{e.x=L.x+(i?-30:30);e.y=L.y+(i?-20:20);e.shootTimer=0;});
+        const nn=nearestNode(L), nd=GRAPH.nodes[nn];
+        r.x=nd.x;r.y=nd.y;r.vx=0;r.vy=0;r.node=nn;r.prevNode=-1;r.tnode=-1;
+        r.tunneling=false;r.target=null;r.bubble=0;r.bubbleNext=90;
+        state.escorts.forEach((e,i)=>{e.x=nd.x+(i?-30:30);e.y=nd.y+(i?-20:20);e.shootTimer=0;e.disabled=0;e.hp=3;});
         state.alerts=Math.max(0,state.alerts-1);
         if(state.captures===1)state.level=2;
-        if(state.captures===2){state.level=3;state.escorts.push({x:L.x+50,y:L.y,shootTimer:0,hp:3});}
+        if(state.captures===2){state.level=3;state.escorts.push({x:nd.x+50,y:nd.y,shootTimer:0,hp:3,disabled:0});}
       } else {
         addMsg(r.tunneling?"¡Se escapó por el túnel!":"Falló: estaba muy lejos.");
       }
@@ -616,6 +756,7 @@ function update(){
   document.getElementById('hTimer').textContent=Math.ceil(state.time);
   document.getElementById('hCaptures').textContent=state.captures;
   document.getElementById('hAlerts').textContent=state.alerts;
+  document.getElementById('hAlt').textContent=state.heli.alt<0.45?'BAJO':'ALTO';
   document.getElementById('hLevel').textContent=state.level;
   document.getElementById('hScore').textContent=state.score;
   const ff=document.getElementById('fuelFill');
@@ -647,22 +788,41 @@ function endGame(win,msg){
 /* ---------- Dibujo de entidades ---------- */
 function drawHeli(){
   const h=state.heli, frame=(state.tick>>2)&1;
-  rect(ctx,h.x-11,h.y-5,22,11,'#3f7f3f');
-  rect(ctx,h.x-8,h.y-8,16,6,'#356b35');
-  rect(ctx,h.x-3,h.y-7,7,5,'#9fe0ff');        // cabina
-  rect(ctx,h.x+11,h.y-2,9,3,'#3f7f3f');       // cola
-  rect(ctx,h.x+18,h.y-6,3,7,'#356b35');
-  rect(ctx,h.x-9,h.y+5,3,3,'#2a2a2a');rect(ctx,h.x+6,h.y+5,3,3,'#2a2a2a'); // patines
-  // rotor
-  ctx.strokeStyle='#cfe9ff';ctx.lineWidth=2;ctx.beginPath();
-  ctx.moveTo(h.x-(frame?13:8),h.y-9);ctx.lineTo(h.x+(frame?13:8),h.y-9);ctx.stroke();
-  circ(ctx,h.x,h.y-9,1.5,'#fff');
+  const lift=h.alt*9;            // se "eleva" visualmente con la altitud
+  const gx=h.x, gy=h.y+8;        // punto en el suelo
+  const x=h.x, y=h.y-lift;       // cuerpo elevado
+  // sombra en el suelo (más chica/tenue cuanto más alto)
+  const ss=1-h.alt*0.45, sa=0.4-h.alt*0.22;
+  ctx.fillStyle='rgba(0,0,0,'+sa+')';
+  ctx.beginPath();ctx.ellipse(gx,gy,13*ss,5*ss,0,0,Math.PI*2);ctx.fill();
+  // halo claro: separa el helicóptero del fondo (contraste sobre asfalto oscuro)
+  ctx.fillStyle='rgba(150,200,255,0.14)';
+  ctx.beginPath();ctx.ellipse(x,y,17,12,0,0,Math.PI*2);ctx.fill();
+  // cuerpo oscuro de alto contraste
+  rect(ctx,x-12,y-6,24,12,'#10151f');         // contorno
+  rect(ctx,x-11,y-5,22,10,'#26324a');         // fuselaje
+  rect(ctx,x-9,y-7,17,5,'#1c2740');           // techo
+  rect(ctx,x-11,y+1,22,2,'#ffd34d');          // franja amarilla
+  rect(ctx,x-3,y-7,8,5,'#8fe8ff');            // cabina
+  rect(ctx,x-3,y-7,3,5,'#cdf4ff');            // brillo de cabina
+  rect(ctx,x+12,y-2,10,3,'#26324a');          // cola
+  rect(ctx,x+12,y-2,10,1,'#10151f');
+  rect(ctx,x+19,y-7,3,8,'#1c2740');           // rotor de cola
+  rect(ctx,x-10,y+6,3,3,'#0c0f16');rect(ctx,x+7,y+6,3,3,'#0c0f16'); // patines
+  rect(ctx,x-11,y+8,24,1,'#0c0f16');
+  // baliza intermitente (rojo/azul)
+  if(frame)circ(ctx,x-11,y-6,1.6,'#ff3b3b'); else circ(ctx,x+11,y-6,1.6,'#3bd1ff');
+  // rotor principal
+  ctx.strokeStyle='#eaf4ff';ctx.lineWidth=2;ctx.beginPath();
+  ctx.moveTo(x-(frame?14:9),y-9);ctx.lineTo(x+(frame?14:9),y-9);ctx.stroke();
+  circ(ctx,x,y-9,1.5,'#fff');
+  // despliegue de soldado (desde el cuerpo hasta el suelo)
   if(state.deploying){
     const prog=1-(state.deployTimer/55);
     ctx.strokeStyle='#ffd34d';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(h.x,h.y+6);ctx.lineTo(h.x,h.y+6+prog*22);ctx.stroke();
-    rect(ctx,h.x-2,h.y+6+prog*22,4,5,'#3f7f3f');           // soldado
-    rect(ctx,h.x-1,h.y+4+prog*22,2,2,'#d9a878');
+    ctx.beginPath();ctx.moveTo(x,y+6);ctx.lineTo(x,y+6+prog*(22+lift));ctx.stroke();
+    rect(ctx,x-2,y+6+prog*(22+lift),4,5,'#3f7f3f');
+    rect(ctx,x-1,y+4+prog*(22+lift),2,2,'#d9a878');
   }
 }
 
@@ -705,19 +865,32 @@ function drawBubble(x,y,text){
 }
 
 function drawEscorts(){
+  const low=state.heli.alt<0.45;
   state.escorts.forEach(e=>{
+    if(e.disabled>0){ // neutralizada: humeante y semitransparente
+      ctx.globalAlpha=0.45;
+      rect(ctx,e.x-6,e.y-4,12,9,'#5a3030');
+      rect(ctx,e.x-4,e.y-7,8,5,'#452020');
+      ctx.globalAlpha=1;
+      circ(ctx,e.x,e.y-8,2,'rgba(120,120,120,'+(0.4+0.3*Math.sin(state.tick*0.3))+')');
+      return;
+    }
     rect(ctx,e.x-6,e.y-4,12,9,'#8a2a2a');
     rect(ctx,e.x-4,e.y-7,8,5,'#6a1a1a');
     rect(ctx,e.x-3,e.y-6,6,3,'#caa');
     rect(ctx,e.x-6,e.y+4,3,2,'#222');rect(ctx,e.x+3,e.y+4,3,2,'#222');
     const dh=dist(e,state.heli);
-    if(dh<85){ctx.strokeStyle='rgba(255,70,70,'+(0.25+0.2*Math.sin(state.tick*0.2))+')';ctx.lineWidth=1;
+    if(dh<85&&low){ctx.strokeStyle='rgba(255,70,70,'+(0.25+0.2*Math.sin(state.tick*0.2))+')';ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(e.x,e.y,85,0,Math.PI*2);ctx.stroke();}
   });
 }
 
 function drawBullets(){
   state.bullets.forEach(b=>{rect(ctx,b.x-2,b.y-2,4,4,'#ff8844');rect(ctx,b.x-1,b.y-1,2,2,'#ffee00');});
+}
+
+function drawHeliBullets(){
+  state.heliBullets.forEach(b=>{rect(ctx,b.x-2,b.y-2,4,4,'#bfffff');rect(ctx,b.x-1,b.y-1,2,2,'#ffffff');});
 }
 
 function drawParticles(){
@@ -727,9 +900,10 @@ function drawParticles(){
 
 function drawFog(){
   const l=LANDMARKS[6]; // Río Humaya
+  const k=1-state.heli.alt*0.7; // desde lo alto ves por encima de la niebla
   const grd=ctx.createRadialGradient(l.x,l.y,8,l.x,l.y,70);
-  grd.addColorStop(0,'rgba(205,214,224,0.65)');
-  grd.addColorStop(0.6,'rgba(205,214,224,0.4)');
+  grd.addColorStop(0,'rgba(205,214,224,'+(0.65*k)+')');
+  grd.addColorStop(0.6,'rgba(205,214,224,'+(0.4*k)+')');
   grd.addColorStop(1,'rgba(205,214,224,0)');
   ctx.fillStyle=grd;ctx.beginPath();ctx.arc(l.x,l.y,70,0,Math.PI*2);ctx.fill();
 }
@@ -747,12 +921,12 @@ function drawMirador(){
 function drawCaptureMeter(){
   const d=dist(state.heli,state.rocha);
   if(d<110&&!state.rocha.tunneling){
-    const pct=1-d/110, h=state.heli;
-    rect(ctx,h.x-23,h.y-24,46,6,'rgba(0,0,0,.55)');
-    rect(ctx,h.x-23,h.y-24,46*pct,6,pct>0.55?'#77ff77':'#ff9944');
-    ctx.strokeStyle='#fff';ctx.lineWidth=0.5;ctx.strokeRect(h.x-23,h.y-24,46,6);
+    const pct=1-d/110, h=state.heli, low=h.alt<0.45, y=h.y-h.alt*9;
+    rect(ctx,h.x-23,y-24,46,6,'rgba(0,0,0,.55)');
+    rect(ctx,h.x-23,y-24,46*pct,6,(low&&pct>0.55)?'#77ff77':'#ff9944');
+    ctx.strokeStyle='#fff';ctx.lineWidth=0.5;ctx.strokeRect(h.x-23,y-24,46,6);
     ctx.fillStyle='#fff';ctx.font='7px "Courier New",monospace';ctx.textAlign='center';
-    ctx.fillText(pct>0.55?'¡CAPTURAR!':'acércate más',h.x,h.y-27);
+    ctx.fillText(!low?'¡BAJA!':(pct>0.55?'¡CAPTURAR!':'acércate más'),h.x,y-27);
   }
 }
 
@@ -764,11 +938,27 @@ function drawMsg(){
   ctx.fillStyle='#ffd34d';ctx.fillText(state.msg,W/2,H-14);
 }
 
+function computeCamera(){
+  const z=2.0-state.heli.alt*1.0; // alto→1 (todo el mapa) · bajo→2 (acercado)
+  cam.zoom=z;
+  const vw=W/z, vh=H/z;
+  cam.x=Math.max(0,Math.min(W-vw,state.heli.x-vw/2));
+  cam.y=Math.max(0,Math.min(H-vh,state.heli.y-vh/2));
+}
+
 function draw(){
+  computeCamera();
+  ctx.fillStyle='#06100a';ctx.fillRect(0,0,W,H);
+  // mundo (con cámara/zoom según altitud)
+  ctx.save();
+  ctx.scale(cam.zoom,cam.zoom);
+  ctx.translate(-cam.x,-cam.y);
   ctx.drawImage(mapCanvas,0,0);
-  drawEscorts();drawBullets();drawRocha();drawHeli();drawParticles();
-  drawFog();
-  drawMirador();drawCaptureMeter();drawMsg();
+  drawEscorts();drawBullets();drawHeliBullets();drawRocha();drawHeli();drawParticles();
+  drawFog();drawMirador();drawCaptureMeter();
+  ctx.restore();
+  // HUD sobre el lienzo (espacio de pantalla)
+  drawMsg();
   // scanlines + viñeta retro
   ctx.fillStyle='rgba(0,0,0,0.05)';
   for(let y=0;y<H;y+=2)ctx.fillRect(0,y,W,1);
@@ -778,11 +968,23 @@ function draw(){
 }
 
 /* ---------- Entrada ---------- */
+function toggleAlt(){
+  if(!state.heli)return;
+  state.heli.altTarget=state.heli.altTarget>0.5?0:1;
+  updateAltBtn();
+}
+function updateAltBtn(){
+  const b=document.getElementById('btnAlt');if(!b||!state.heli)return;
+  const high=state.heli.altTarget>0.5;
+  b.innerHTML=high?'<span>⬇</span>&nbsp;BAJAR':'<span>⬆</span>&nbsp;SUBIR';
+}
 document.addEventListener('keydown',e=>{
   keys[e.key]=true;
   if(e.key===' '){e.preventDefault();if(!e.repeat)deployEdge=true;}
+  if(e.key==='Shift'){e.preventDefault();if(!e.repeat){toggleAlt();SFX.ui();}}
+  if(e.key==='f'||e.key==='F'){e.preventDefault();firing=true;}
 });
-document.addEventListener('keyup',e=>{keys[e.key]=false;});
+document.addEventListener('keyup',e=>{keys[e.key]=false;if(e.key==='f'||e.key==='F')firing=false;});
 
 // Joystick
 const joy=document.getElementById('joy'), knob=document.getElementById('joyKnob');
@@ -807,6 +1009,20 @@ btnA.addEventListener('touchstart',e=>{e.preventDefault();deployEdge=true;btnA.c
 btnA.addEventListener('touchend',e=>{e.preventDefault();btnA.classList.remove('act');},{passive:false});
 btnA.addEventListener('mousedown',e=>{e.preventDefault();deployEdge=true;btnA.classList.add('act');});
 window.addEventListener('mouseup',()=>btnA.classList.remove('act'));
+
+// Botón de disparo (defensa) — sostenido
+const btnFire=document.getElementById('btnFire');
+btnFire.addEventListener('touchstart',e=>{e.preventDefault();firing=true;btnFire.classList.add('act');},{passive:false});
+btnFire.addEventListener('touchend',e=>{e.preventDefault();firing=false;btnFire.classList.remove('act');},{passive:false});
+btnFire.addEventListener('touchcancel',()=>{firing=false;btnFire.classList.remove('act');});
+btnFire.addEventListener('mousedown',e=>{e.preventDefault();firing=true;btnFire.classList.add('act');});
+window.addEventListener('mouseup',()=>{firing=false;btnFire.classList.remove('act');});
+
+// Botón de altitud (sube/baja) — alterna
+const btnAlt=document.getElementById('btnAlt');
+btnAlt.addEventListener('touchstart',e=>{e.preventDefault();toggleAlt();SFX.ui();btnAlt.classList.add('act');},{passive:false});
+btnAlt.addEventListener('touchend',e=>{e.preventDefault();btnAlt.classList.remove('act');},{passive:false});
+btnAlt.addEventListener('mousedown',e=>{e.preventDefault();toggleAlt();SFX.ui();});
 
 /* ---------- Responsive / orientación ---------- */
 function resize(){
@@ -852,9 +1068,10 @@ const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==
 if(isIOS&&!inStandalone){const h=document.getElementById('installHint');if(h)h.style.display='block';}
 
 /* ---------- Init ---------- */
+GRAPH=buildRoadGraph();
 mapCanvas=buildMap();
-if(isTouch){joy.style.display='block';btnA.style.display='flex';
-  document.getElementById('ctrlText').textContent='Joystick para volar · botón para desplegar soldado';}
+if(isTouch){joy.style.display='block';btnA.style.display='flex';btnFire.style.display='flex';btnAlt.style.display='flex';
+  document.getElementById('ctrlText').textContent='Joystick para volar · ALTITUD subir/bajar · DISPARAR defenderte · CAPTURAR';}
 document.getElementById('startHigh').textContent=highScore;
 resize();
 // pantalla inicial de fondo
