@@ -84,6 +84,9 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
 .diffBtn.sel{background:#2f6f2f;border-color:#7fd47f;color:#eaffea;font-weight:700}
 #goStats{display:flex;gap:22px;margin:2px 0;color:#bfe6bf;font-size:13px;letter-spacing:1px}
 #goStats b{color:#ffd34d;font-size:18px;display:block}
+#endScene{display:none;width:min(400px,74vw);image-rendering:pixelated;image-rendering:crisp-edges;
+  border:2px solid #3a6a3a;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.65)}
+#gameOverScreen{gap:8px}
 .hi{color:#ffd34d}
 #btnMute{position:fixed;top:calc(6px + env(safe-area-inset-top));right:calc(8px + env(safe-area-inset-right));z-index:7;width:34px;height:34px;border-radius:6px;
   background:rgba(10,22,10,.82);border:1px solid #2f5f2f;color:#bfe6bf;font-size:16px;cursor:pointer;line-height:1}
@@ -135,6 +138,7 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
         <span>🧩 <b>Mercado</b>: laberinto</span>
         <span>⛽ <b>Tomateros/Forum</b>: recarga</span>
         <span>🔭 <b>La Lomita</b>: localiza</span>
+        <span>🕴️ <b>Inzunza</b>: ¡no captures al equivocado!</span>
       </div>
       <div class="diffRow">
         <button class="diffBtn" data-d="facil" onclick="setDiff('facil')">FÁCIL</button>
@@ -151,6 +155,7 @@ canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;backg
 
   <div class="screen" id="gameOverScreen" style="display:none">
     <h1 id="goTitle">MISIÓN FALLIDA</h1>
+    <canvas id="endScene" width="240" height="135"></canvas>
     <p id="goMsg"></p>
     <div id="goStats">
       <div>PUNTOS<b id="goScore">0</b></div>
@@ -224,6 +229,44 @@ function buildRoadGraph(){
   return {nodes,adj};
 }
 function nearestNode(p){let b=0,bd=1e9; GRAPH.nodes.forEach((n,i)=>{const d=(n.x-p.x)**2+(n.y-p.y)**2; if(d<bd){bd=d;b=i;}}); return b;}
+
+/* ---------- Ambiente vivo: tráfico, nubes, destellos del río ---------- */
+const CAR_COLORS=['#c0392b','#2980b9','#f0e0b0','#9aa0a6','#27ae60','#e67e22','#e8e8e8','#5a4aa0'];
+function initCars(){
+  const cars=[];
+  for(let i=0;i<14;i++){
+    const horiz=i%2===0, fwd=i%4<2;
+    if(horiz){
+      const y=ROAD_YS[i%ROAD_YS.length];
+      cars.push({h:1,x:ROAD_X0+Math.random()*(ROAD_X1-ROAD_X0),y:y+(fwd?-2:2),dir:fwd?1:-1,
+                 spd:0.35+Math.random()*0.45,col:CAR_COLORS[i%CAR_COLORS.length]});
+    }else{
+      const x=ROAD_XS[i%ROAD_XS.length];
+      cars.push({h:0,x:x+(fwd?-2:2),y:ROAD_Y0+Math.random()*(ROAD_Y1-ROAD_Y0),dir:fwd?1:-1,
+                 spd:0.35+Math.random()*0.45,col:CAR_COLORS[(i+3)%CAR_COLORS.length]});
+    }
+  }
+  return cars;
+}
+function initClouds(){
+  return [
+    {x:120,y:80, vx:0.060,s:1.0},
+    {x:420,y:210,vx:0.045,s:1.4},
+    {x:600,y:60, vx:0.070,s:0.8},
+    {x:260,y:330,vx:0.050,s:1.2},
+  ];
+}
+let RIVPTS=[];
+function buildRiverPts(){
+  RIVPTS=[];
+  [RIVER_HUMAYA,RIVER_TAMAZULA,RIVER_CULIACAN].forEach(rv=>{
+    for(let i=0;i<rv.length-1;i++){
+      const [x0,y0]=rv[i],[x1,y1]=rv[i+1],n=Math.max(2,(Math.hypot(x1-x0,y1-y0)/9)|0);
+      for(let j=0;j<n;j++){const t=j/n;
+        RIVPTS.push({x:x0+(x1-x0)*t+(Math.random()-.5)*8,y:y0+(y1-y0)*t+(Math.random()-.5)*8});}
+    }
+  });
+}
 
 let state={};
 let keys={};
@@ -371,6 +414,11 @@ function buildMap(){
   ROADS.forEach(rd=>poly(g,rd,6,'#63635a'));    // centro de carril
   g.setLineDash([8,8]);ROADS.forEach(rd=>poly(g,rd,1,'#e8e4a0'));g.setLineDash([]);
   ROAD_XS.forEach(x=>ROAD_YS.forEach(y=>rect(g,x-5,y-5,10,10,'#5d5d54'))); // cruces
+  // pasos peatonales (cebras) junto a cada cruce
+  ROAD_XS.forEach(x=>ROAD_YS.forEach(y=>{
+    for(let i=-3;i<=3;i+=2){rect(g,x-8,y+i,2,1,'#d8d4c0');rect(g,x+7,y+i,2,1,'#d8d4c0');
+      rect(g,x+i,y-8,1,2,'#d8d4c0');rect(g,x+i,y+7,1,2,'#d8d4c0');}
+  }));
 
   // ríos: ribera + agua + reflejo
   [RIVER_HUMAYA,RIVER_TAMAZULA,RIVER_CULIACAN].forEach(rv=>{
@@ -385,10 +433,14 @@ function buildMap(){
     for(let i=-12;i<=12;i+=6)rect(g,x+i,y-7,2,14,'#5a4a30');}
   bridge(240,185); bridge(434,185); bridge(355,272);
 
-  // árboles dispersos
+  // árboles dispersos (con tronco y sombrita)
   for(let i=0;i<40;i++){
     const x=20+((i*131)%(W-40)), y=20+((i*71)%(H-40));
-    if((i*37)%5<2){circ(g,x,y,4,'#1f4a1f');circ(g,x-1,y-1,2,'#3f7a3f');}
+    if((i*37)%5<2){
+      g.fillStyle='rgba(0,0,0,.18)';g.beginPath();g.ellipse(x+2,y+4,4,2,0,0,Math.PI*2);g.fill();
+      rect(g,x-1,y+1,2,3,'#5a4326');
+      circ(g,x,y,4,'#1f4a1f');circ(g,x-1,y-1,2,'#3f7a3f');circ(g,x+1,y-2,1,'#5a9a4a');
+    }
   }
 
   // landmarks + etiquetas
@@ -464,8 +516,10 @@ function initState(){
   return{
     heli:{x:360,y:200,vx:0,vy:0,alt:1,altTarget:1,face:0,fireTimer:0},
     rocha:{x:GRAPH.nodes[startNode].x,y:GRAPH.nodes[startNode].y,vx:0,vy:0,
-           node:startNode,tnode:-1,prevNode:-1,
+           node:startNode,tnode:-1,prevNode:-1,hidden:false,
            tunneling:false,tunnelTimer:0,target:null,bubble:0,bubbleNext:120},
+    inzunza:(()=>{const n=nearestNode({x:560,y:300});
+      return{x:GRAPH.nodes[n].x,y:GRAPH.nodes[n].y,node:n,tnode:-1,prevNode:-1,bubble:0,bubbleNext:260};})(),
     escorts:[
       {x:60,y:100,shootTimer:0,hp:3,disabled:0},
       {x:120,y:140,shootTimer:0,hp:3,disabled:0},
@@ -481,6 +535,9 @@ function initState(){
     level:1,
     deploying:false,
     deployTimer:0,
+    hoist:null,            // animación de izado al capturar
+    cars:initCars(),
+    clouds:initClouds(),
     msg:"",
     msgTimer:0,
     tick:0,
@@ -527,29 +584,31 @@ function rochaTunnel(){
   for(let i=0;i<8;i++)state.particles.push({x:state.rocha.x,y:state.rocha.y,vx:(Math.random()-.5)*3,vy:(Math.random()-.5)*3,life:22,max:22,color:'#bcd'});
 }
 
-// Elige la siguiente esquina por la que escapará Rocha (siempre por una calle)
-function rochaPickNext(){
-  const r=state.rocha, heli=state.heli;
-  const nbrs=GRAPH.adj[r.node];
-  if(!nbrs||!nbrs.length){r.tnode=-1;return;}
-  const fleeing=dist(r,heli)<240;
+// Elige la siguiente esquina de un caminante (siempre por una calle)
+function walkerPickNext(wk,fleeFrom){
+  const nbrs=GRAPH.adj[wk.node];
+  if(!nbrs||!nbrs.length){wk.tnode=-1;return;}
   let choice;
-  if(fleeing){
-    // toma la esquina que más lo aleja del helicóptero (sin devolverse si puede)
+  if(fleeFrom){
+    // toma la esquina que más lo aleja del perseguidor (sin devolverse si puede)
     let best=-1,bd=-1;
     for(const nb of nbrs){
-      if(nb===r.prevNode && nbrs.length>1)continue;
-      const n=GRAPH.nodes[nb], d=Math.hypot(n.x-heli.x,n.y-heli.y);
+      if(nb===wk.prevNode && nbrs.length>1)continue;
+      const n=GRAPH.nodes[nb], d=Math.hypot(n.x-fleeFrom.x,n.y-fleeFrom.y);
       if(d>bd){bd=d;best=nb;}
     }
     choice=best;
   } else {
     // merodea: rumbo aleatorio evitando regresar por donde vino
-    const opts=nbrs.filter(nb=>nb!==r.prevNode);
+    const opts=nbrs.filter(nb=>nb!==wk.prevNode);
     const pool=opts.length?opts:nbrs;
     choice=pool[(Math.random()*pool.length)|0];
   }
-  r.prevNode=r.node; r.tnode=choice;
+  wk.prevNode=wk.node; wk.tnode=choice;
+}
+function rochaPickNext(){
+  const r=state.rocha;
+  walkerPickNext(r, dist(r,state.heli)<240?state.heli:null);
 }
 
 /* ---------- Loop ---------- */
@@ -562,8 +621,8 @@ function loop(){
 
 function update(){
   state.tick++;
-  state.time-=1/60;
-  if(state.time<=0){return endGame(false,"Se acabó el tiempo. Rocha sigue libre.");}
+  if(!state.hoist)state.time-=1/60;   // el izado es cinemático: no corre el reloj
+  if(state.time<=0){return endGame(false,"Se acabó el tiempo.");}
 
   const heli=state.heli, r=state.rocha, D=DIFFS[diffKey];
 
@@ -601,8 +660,17 @@ function update(){
   heli.y=Math.max(12,Math.min(H-12,heli.y+heli.vy));
   if(Math.hypot(heli.vx,heli.vy)>0.3)heli.face=Math.atan2(heli.vy,heli.vx);
 
+  // ambiente: tráfico y nubes
+  state.cars.forEach(c=>{
+    if(c.h){c.x+=c.dir*c.spd;if(c.x>ROAD_X1+8)c.x=ROAD_X0-8;if(c.x<ROAD_X0-8)c.x=ROAD_X1+8;}
+    else{c.y+=c.dir*c.spd;if(c.y>ROAD_Y1+8)c.y=ROAD_Y0-8;if(c.y<ROAD_Y0-8)c.y=ROAD_Y1+8;}
+  });
+  state.clouds.forEach(c=>{c.x+=c.vx;if(c.x>W+70)c.x=-70;});
+
   // IA de Rocha: huye por las calles, de esquina en esquina
-  if(r.tunneling){
+  if(r.hidden){
+    // está siendo izado: no se mueve
+  } else if(r.tunneling){
     r.tunnelTimer--;
     r.x+=(r.target.x-r.x)*0.16;
     r.y+=(r.target.y-r.y)*0.16;
@@ -624,6 +692,19 @@ function update(){
   }
   if(r.bubble>0)r.bubble--;
 
+  // Inzunza (el señuelo): merodea por las calles igual que Rocha
+  const z=state.inzunza, zspd=0.8*D.rochaSpd;
+  if(z.tnode<0)walkerPickNext(z, dist(z,heli)<120?heli:null);
+  const ztn=GRAPH.nodes[z.tnode];
+  if(ztn){
+    const dx=ztn.x-z.x, dy=ztn.y-z.y, d=Math.hypot(dx,dy);
+    if(d<=zspd){z.x=ztn.x;z.y=ztn.y;z.node=z.tnode;walkerPickNext(z, dist(z,heli)<120?heli:null);}
+    else{z.x+=dx/d*zspd;z.y+=dy/d*zspd;}
+  }
+  z.bubbleNext--;
+  if(z.bubbleNext<=0){z.bubble=110;z.bubbleNext=320+((Math.random()*200)|0);}
+  if(z.bubble>0)z.bubble--;
+
   // escoltas: persiguen a Rocha y solo disparan si estás a baja altura
   state.escorts.forEach(e=>{
     if(e.disabled>0){   // neutralizada: se retira un rato y vuelve
@@ -638,7 +719,7 @@ function update(){
     e.x=Math.max(6,Math.min(W-6,e.x));
     e.y=Math.max(6,Math.min(H-6,e.y));
     const dh=dist(e,heli);
-    if(dh<85 && low){
+    if(dh<85 && low && !state.hoist){
       e.shootTimer++;
       if(e.shootTimer>D.shoot){
         const a=Math.atan2(heli.y-e.y,heli.x-e.x);
@@ -707,11 +788,12 @@ function update(){
     return b.life>0&&b.x>-10&&b.x<W+10&&b.y>-10&&b.y<H+10;
   });
 
-  // desplegar soldado (requiere baja altura)
+  // desplegar soldado (requiere baja altura; ojo: puedes agarrar a Inzunza por error)
   if(deployEdge){deployEdge=false;
-    if(!state.deploying){
+    if(!state.deploying&&!state.hoist){
+      const nearTarget=Math.min(dist(heli,r),dist(heli,z));
       if(!low){addMsg("Desciende para capturar (baja altura).");}
-      else if(state.fuel>8&&dist(heli,r)<70){
+      else if(state.fuel>8&&nearTarget<70){
         state.deploying=true;state.deployTimer=55;addMsg("Desplegando soldado…");SFX.deploy();
       } else {
         addMsg("Acércate más a Rocha para desplegar.");
@@ -722,29 +804,27 @@ function update(){
     state.deployTimer--;
     if(state.deployTimer<=0){
       state.deploying=false;
-      if(dist(heli,r)<78&&!r.tunneling){
-        state.captures++;
-        const gain=500*state.level;
-        const sb=Math.round(Math.max(0,600-(state.tick-state.huntStart))/2); // bono captura rápida
-        state.score+=gain+sb;
-        state.huntStart=state.tick;
-        SFX.capture();vibrate([25,35,25]);
-        for(let i=0;i<16;i++)state.particles.push({x:r.x,y:r.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:38,max:38,color:'#77ff77'});
-        addMsg("¡CAPTURADO! +"+gain+(sb>0?" (rápido +"+sb+")":""));
-        if(state.captures>=3)return endGame(true,"¡Misión cumplida! Por fin… ¿y el Rocha? ¡Capturado!");
-        // reaparece en una esquina cercana a un punto de interés aleatorio
-        const L=LANDMARKS[(Math.random()*LANDMARKS.length)|0];
-        const nn=nearestNode(L), nd=GRAPH.nodes[nn];
-        r.x=nd.x;r.y=nd.y;r.vx=0;r.vy=0;r.node=nn;r.prevNode=-1;r.tnode=-1;
-        r.tunneling=false;r.target=null;r.bubble=0;r.bubbleNext=90;
-        state.escorts.forEach((e,i)=>{e.x=nd.x+(i?-30:30);e.y=nd.y+(i?-20:20);e.shootTimer=0;e.disabled=0;e.hp=3;});
-        state.alerts=Math.max(0,state.alerts-1);
-        if(state.captures===1)state.level=2;
-        if(state.captures===2){state.level=3;state.escorts.push({x:nd.x+50,y:nd.y,shootTimer:0,hp:3,disabled:0});}
+      const dr=dist(heli,r), dz=dist(heli,z);
+      if(dz<78&&dz<dr){
+        // ¡capturaste al equivocado! Inzunza te distrajo
+        state.score=Math.max(0,state.score-150);
+        state.time=Math.max(5,state.time-10);
+        z.bubble=140;
+        addMsg("¡Era Inzunza! −150 pts y −10 s");
+        SFX.hit();vibrate(120);
+        for(let i=0;i<10;i++)state.particles.push({x:z.x,y:z.y,vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:24,max:24,color:'#7fa8d0'});
+      } else if(dr<78&&!r.tunneling){
+        startHoist();
       } else {
         addMsg(r.tunneling?"¡Se escapó por el túnel!":"Falló: estaba muy lejos.");
       }
     }
+  }
+
+  // animación de izado: el soldado amarra a Rocha y lo suben al helicóptero
+  if(state.hoist){
+    state.hoist.t++;
+    if(state.hoist.t>=state.hoist.dur)return finishHoist();
   }
 
   // partículas
@@ -764,6 +844,38 @@ function update(){
   ff.style.background=state.fuel>40?'#5fcf5f':state.fuel>18?'#e0c040':'#e05050';
 }
 
+/* ---------- Captura: animación de izado ---------- */
+function startHoist(){
+  const r=state.rocha;
+  r.hidden=true;
+  state.hoist={t:0,dur:130,gx:r.x,gy:r.y};
+  addMsg("¡Lo tenemos! Subiéndolo al helicóptero…");
+  SFX.deploy();vibrate(40);
+}
+function finishHoist(){
+  const r=state.rocha;
+  state.hoist=null;
+  state.captures++;
+  const gain=500*state.level;
+  const sb=Math.round(Math.max(0,600-(state.tick-state.huntStart))/2); // bono captura rápida
+  state.score+=gain+sb;
+  state.huntStart=state.tick;
+  SFX.capture();vibrate([25,35,25]);
+  const h=state.heli;
+  for(let i=0;i<16;i++)state.particles.push({x:h.x,y:h.y,vx:(Math.random()-.5)*5,vy:(Math.random()-.5)*5,life:38,max:38,color:'#77ff77'});
+  addMsg("¡CAPTURADO! +"+gain+(sb>0?" (rápido +"+sb+")":""));
+  if(state.captures>=3)return endGame(true,"¡Misión cumplida! Por fin… ¿y el Rocha? ¡Capturado!");
+  // reaparece en una esquina cercana a un punto de interés aleatorio
+  const L=LANDMARKS[(Math.random()*LANDMARKS.length)|0];
+  const nn=nearestNode(L), nd=GRAPH.nodes[nn];
+  r.x=nd.x;r.y=nd.y;r.vx=0;r.vy=0;r.node=nn;r.prevNode=-1;r.tnode=-1;r.hidden=false;
+  r.tunneling=false;r.target=null;r.bubble=0;r.bubbleNext=90;
+  state.escorts.forEach((e,i)=>{e.x=nd.x+(i?-30:30);e.y=nd.y+(i?-20:20);e.shootTimer=0;e.disabled=0;e.hp=3;});
+  state.alerts=Math.max(0,state.alerts-1);
+  if(state.captures===1)state.level=2;
+  if(state.captures===2){state.level=3;state.escorts.push({x:nd.x+50,y:nd.y,shootTimer:0,hp:3,disabled:0});}
+}
+
 function endGame(win,msg){
   gameRunning=false;
   if(animFrame)cancelAnimationFrame(animFrame);
@@ -772,12 +884,17 @@ function endGame(win,msg){
     const bonus=Math.ceil(state.time)*10+Math.round(state.fuel)*5;
     state.score+=bonus;
     msg+=" Bono: tiempo +"+(Math.ceil(state.time)*10)+", combustible +"+(Math.round(state.fuel)*5)+".";
+    msg+=" Rocha duerme hoy de naranja, tras las rejas.";
     SFX.win();vibrate([60,60,60,60,120]);
-  } else {SFX.lose();vibrate(200);}
+  } else {
+    msg+=" Rocha logró huir con Inzunza… ¿y las pruebas? Quién sabe.";
+    SFX.lose();vibrate(200);
+  }
   const isRecord=state.score>highScore;
   if(isRecord){highScore=state.score;lsSet('rocha_highscore',''+highScore);}
   document.getElementById('gameOverScreen').style.display='flex';
-  document.getElementById('goTitle').textContent=win?"🏆 MISIÓN CUMPLIDA":"MISIÓN FALLIDA";
+  document.getElementById('goTitle').textContent=win?"🏆 MISIÓN CUMPLIDA":"🛻 SE PELARON";
+  drawEndScene(win);
   document.getElementById('goMsg').textContent=msg;
   document.getElementById('goScore').textContent=state.score;
   document.getElementById('goHigh').textContent=highScore;
@@ -828,6 +945,7 @@ function drawHeli(){
 
 function drawRocha(){
   const r=state.rocha;
+  if(r.hidden)return; // está siendo izado: lo dibuja drawHoist
   if(r.tunneling)ctx.globalAlpha=0.35+0.3*Math.sin(state.tick*0.3);
   // guayabera (camisa clara) y pantalón
   rect(ctx,r.x-7,r.y+7,5,5,'#3a3a44');rect(ctx,r.x+2,r.y+7,5,5,'#3a3a44');
@@ -847,6 +965,86 @@ function drawRocha(){
   ctx.globalAlpha=1;
   // globito
   if(r.bubble>0)drawBubble(r.x,r.y-18,"¿y las pruebas?");
+}
+
+function drawInzunza(){
+  const z=state.inzunza;
+  // pantalón y saco café (abierto, con camisa azul)
+  rect(ctx,z.x-7,z.y+7,5,5,'#2e2e36');rect(ctx,z.x+2,z.y+7,5,5,'#2e2e36');
+  rect(ctx,z.x-7,z.y-2,14,11,'#5a4332');
+  rect(ctx,z.x-2,z.y-2,4,9,'#7fa8d0');                 // camisa azul
+  rect(ctx,z.x-7,z.y-2,2,11,'#48362a');rect(ctx,z.x+5,z.y-2,2,11,'#48362a'); // solapas
+  // cabeza con entradas (pelo oscuro a los lados)
+  rect(ctx,z.x-5,z.y-12,10,11,'#d9a878');
+  rect(ctx,z.x-6,z.y-14,12,2,'#2e2622');
+  rect(ctx,z.x-6,z.y-12,2,4,'#2e2622');rect(ctx,z.x+4,z.y-12,2,4,'#2e2622');
+  // ojos y boca seria
+  rect(ctx,z.x-3,z.y-8,2,2,'#222');rect(ctx,z.x+1,z.y-8,2,2,'#222');
+  rect(ctx,z.x-2,z.y-3,4,1,'#8a5030');
+  // globito
+  if(z.bubble>0)drawBubble(z.x,z.y-18,"¡yo no fui!");
+}
+
+function drawHoist(){
+  const hst=state.hoist;if(!hst)return;
+  const h=state.heli, lift=h.alt*9;
+  const hx=h.x, hy=h.y-lift+7;
+  const t=Math.min(1,hst.t/hst.dur);
+  const up=t<0.22?0:(t-0.22)/0.78;           // fase 1: amarre · fase 2: izado
+  const e=up*up*(3-2*up);                    // suavizado
+  const ax=hst.gx+(hx-hst.gx)*e+Math.sin(state.tick*0.18)*(1-e)*4; // balanceo
+  const ay=hst.gy+(hy+9-hst.gy)*e;
+  // cuerda del cabrestante
+  ctx.strokeStyle='#ffd34d';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(hx,hy);ctx.lineTo(ax,ay-14);ctx.stroke();
+  // soldado en el arnés sujetándolo
+  rect(ctx,ax-6,ay-13,4,7,'#3f7f3f');
+  rect(ctx,ax-5,ay-16,3,3,'#d9a878');
+  rect(ctx,ax-6,ay-17,4,2,'#2f5f2f');        // casco
+  // Rocha colgando y pataleando
+  const kick=Math.sin(state.tick*0.3)>0?2:-2;
+  rect(ctx,ax-1,ay-12,8,8,'#f1ede0');        // guayabera
+  rect(ctx,ax,ay-17,6,6,'#d9a878');          // cabeza
+  rect(ctx,ax-1,ay-19,8,3,'#e2e2e2');        // cabello cano
+  rect(ctx,ax,ay-14,2,2,'#111');rect(ctx,ax+3,ay-14,2,2,'#111'); // lentes
+  rect(ctx,ax,ay-4,3,4+kick,'#3a3a44');      // piernas pataleando
+  rect(ctx,ax+4,ay-4,3,4-kick,'#3a3a44');
+  if(t>0.25&&t<0.85)drawBubble(ax,ay-26,"¡suéltenme!");
+  // polvo del rotor mientras lo amarran
+  if(up<=0&&(state.tick%4)===0)
+    state.particles.push({x:hst.gx+(Math.random()-.5)*20,y:hst.gy+8,vx:(Math.random()-.5)*1.5,vy:-0.3,life:18,max:18,color:'#cbb89a'});
+}
+
+function drawCars(){
+  state.cars.forEach(c=>{
+    if(c.h){
+      rect(ctx,c.x-3,c.y-2,7,4,'#1a1a1a');
+      rect(ctx,c.x-2,c.y-1,5,2,c.col);
+      rect(ctx,c.x+(c.dir>0?1:-2),c.y-1,1,2,'#bfe6ff');   // parabrisas
+    }else{
+      rect(ctx,c.x-2,c.y-3,4,7,'#1a1a1a');
+      rect(ctx,c.x-1,c.y-2,2,5,c.col);
+      rect(ctx,c.x-1,c.y+(c.dir>0?1:-2),2,1,'#bfe6ff');
+    }
+  });
+}
+
+function drawClouds(){
+  state.clouds.forEach(c=>{
+    ctx.fillStyle='rgba(0,20,0,0.13)';                    // sombra en el suelo
+    ctx.beginPath();ctx.ellipse(c.x+10,c.y+14,30*c.s,11*c.s,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.16)';               // nube
+    ctx.beginPath();
+    ctx.ellipse(c.x,c.y,28*c.s,10*c.s,0,0,Math.PI*2);
+    ctx.ellipse(c.x-12*c.s,c.y+3,16*c.s,7*c.s,0,0,Math.PI*2);
+    ctx.ellipse(c.x+14*c.s,c.y+2,18*c.s,8*c.s,0,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+function drawWaterGlints(){
+  ctx.fillStyle='rgba(220,245,255,0.7)';
+  RIVPTS.forEach((p,i)=>{if(((i*13+(state.tick>>3))%11)<2)ctx.fillRect(p.x,p.y,2,1);});
 }
 
 function drawBubble(x,y,text){
@@ -909,7 +1107,7 @@ function drawFog(){
 }
 
 function drawMirador(){
-  if(!state.miradorActive)return;
+  if(!state.miradorActive||state.rocha.hidden)return;
   const r=state.rocha, pulse=4+2*Math.sin(state.tick*0.25);
   ctx.strokeStyle='#ff5a5a';ctx.lineWidth=2;
   ctx.beginPath();ctx.arc(r.x,r.y,16+pulse,0,Math.PI*2);ctx.stroke();
@@ -919,6 +1117,7 @@ function drawMirador(){
 }
 
 function drawCaptureMeter(){
+  if(state.rocha.hidden||state.hoist)return;
   const d=dist(state.heli,state.rocha);
   if(d<110&&!state.rocha.tunneling){
     const pct=1-d/110, h=state.heli, low=h.alt<0.45, y=h.y-h.alt*9;
@@ -954,8 +1153,9 @@ function draw(){
   ctx.scale(cam.zoom,cam.zoom);
   ctx.translate(-cam.x,-cam.y);
   ctx.drawImage(mapCanvas,0,0);
-  drawEscorts();drawBullets();drawHeliBullets();drawRocha();drawHeli();drawParticles();
-  drawFog();drawMirador();drawCaptureMeter();
+  drawWaterGlints();drawCars();
+  drawEscorts();drawBullets();drawHeliBullets();drawRocha();drawInzunza();drawHeli();drawHoist();drawParticles();
+  drawClouds();drawFog();drawMirador();drawCaptureMeter();
   ctx.restore();
   // HUD sobre el lienzo (espacio de pantalla)
   drawMsg();
@@ -965,6 +1165,121 @@ function draw(){
   const vg=ctx.createRadialGradient(W/2,H/2,H*0.4,W/2,H/2,H*0.85);
   vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.35)');
   ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
+}
+
+/* ---------- Escenas finales (pixel-art en el panel de fin de juego) ---------- */
+function drawEndScene(win){
+  const cv=document.getElementById('endScene'), g=cv.getContext('2d');
+  g.imageSmoothingEnabled=false;
+  g.clearRect(0,0,240,135);
+  if(win)drawJailScene(g); else drawEscapeScene(g);
+  cv.style.display='block';
+}
+
+// Figuras grandes (escala 2): Rocha = canas + lentes; Inzunza = entradas + saco café
+function drawBigRocha(g,x,y){
+  const s=2, P=(px,py,w,h,c)=>rect(g,x+px*s,y+py*s,w*s,h*s,c);
+  P(1,0,10,3,'#e8e8e8');P(0,1,2,5,'#dcdcdc');P(10,1,2,5,'#dcdcdc');     // cabello cano
+  P(2,3,8,7,'#d9a878');                                                 // cara
+  P(2,5,3,2,'#1a1a1a');P(7,5,3,2,'#1a1a1a');P(5,5,2,1,'#1a1a1a');       // lentes
+  P(4,8,4,1,'#9a5030');                                                 // sonrisa
+  P(4,10,4,1,'#c89868');                                                // cuello
+  P(0,11,12,10,'#4a3a2e');P(0,11,12,1,'#5d4a3a');                       // camisa café oscuro
+  P(5,12,1,8,'#2e241c');                                                // botonadura
+  P(-3,5,3,3,'#d9a878');P(-3,8,3,5,'#4a3a2e');                          // brazo saludando
+  P(11,12,2,7,'#4a3a2e');P(11,19,2,2,'#d9a878');                        // brazo abajo
+  P(1,21,4,7,'#3a3a44');P(7,21,4,7,'#3a3a44');                          // pantalón
+  P(0,28,5,2,'#1a1a1a');P(7,28,5,2,'#1a1a1a');                          // zapatos
+}
+function drawBigInzunza(g,x,y){
+  const s=2, P=(px,py,w,h,c)=>rect(g,x+px*s,y+py*s,w*s,h*s,c);
+  P(1,0,10,2,'#2e2622');P(0,2,2,4,'#2e2622');P(10,2,2,4,'#2e2622');     // pelo oscuro con entradas
+  P(2,2,8,8,'#d9a878');                                                 // cara (frente amplia)
+  P(3,5,2,2,'#1a1a1a');P(7,5,2,2,'#1a1a1a');                            // ojos
+  P(4,9,4,1,'#8a5030');                                                 // boca seria
+  P(4,10,4,1,'#c89868');                                                // cuello
+  P(0,11,12,11,'#5a4332');                                              // saco café
+  P(5,11,2,7,'#7fa8d0');                                                // camisa azul
+  P(3,11,2,6,'#48362a');P(7,11,2,6,'#48362a');                          // solapas
+  P(-1,12,2,8,'#5a4332');                                               // brazo izq
+  P(11,12,2,8,'#5a4332');P(11,20,2,2,'#d9a878');                        // brazo der
+  P(9,22,7,5,'#3a2a1c');P(11,21,3,1,'#2a1e14');                         // maletín
+  P(1,22,4,6,'#2e2e36');P(7,22,4,6,'#2e2e36');                          // pantalón
+  P(0,28,5,2,'#1a1a1a');P(7,28,5,2,'#1a1a1a');                          // zapatos
+}
+
+// Derrota: Rocha e Inzunza se despiden al atardecer junto a la camioneta
+function drawEscapeScene(g){
+  const sky=g.createLinearGradient(0,0,0,95);
+  sky.addColorStop(0,'#2a1a4a');sky.addColorStop(.5,'#b5482a');sky.addColorStop(1,'#ffb04a');
+  g.fillStyle=sky;g.fillRect(0,0,240,95);
+  circ(g,180,76,14,'#ffd86a');circ(g,180,76,10,'#ffefa0');              // sol poniente
+  // cerros y La Lomita en silueta
+  g.fillStyle='#241a30';
+  g.beginPath();g.moveTo(0,95);g.lineTo(42,66);g.lineTo(95,95);g.closePath();g.fill();
+  g.beginPath();g.moveTo(70,95);g.lineTo(132,58);g.lineTo(205,95);g.closePath();g.fill();
+  rect(g,131,46,2,8,'#241a30');rect(g,128,48,8,2,'#241a30');            // cruz de La Lomita
+  // carretera
+  rect(g,0,95,240,40,'#3a3a36');
+  rect(g,0,100,240,28,'#55554c');
+  g.fillStyle='#e8e4a0';for(let x=4;x<240;x+=16)g.fillRect(x,113,8,2);
+  // camioneta esperándolos, de salida
+  rect(g,14,96,44,14,'#15151a');                                        // caja
+  rect(g,10,90,22,8,'#15151a');                                         // cabina
+  rect(g,12,92,8,5,'#7fa8d0');                                          // ventana
+  rect(g,8,104,6,2,'#ffd86a');                                          // faro
+  circ(g,22,111,4,'#000');circ(g,22,111,2,'#444');
+  circ(g,48,111,4,'#000');circ(g,48,111,2,'#444');
+  circ(g,64,106,3,'rgba(160,160,160,.5)');circ(g,70,103,4,'rgba(160,160,160,.35)'); // humo
+  // los prófugos, despidiéndose
+  drawBigRocha(g,116,66);
+  drawBigInzunza(g,164,66);
+  // globito clásico
+  g.fillStyle='#fff';g.fillRect(86,42,76,14);
+  g.strokeStyle='#222';g.lineWidth=1;g.strokeRect(86.5,42.5,75,13);
+  g.beginPath();g.moveTo(118,56);g.lineTo(126,56);g.lineTo(124,61);g.closePath();g.fill();
+  g.fillStyle='#a01818';g.font='bold 8px "Courier New",monospace';g.textAlign='center';
+  g.fillText('¿y las pruebas?',124,52);
+}
+
+// Victoria: Rocha de naranja, ficha policial y tras las rejas
+function drawJailScene(g){
+  const wall=g.createLinearGradient(0,0,0,135);
+  wall.addColorStop(0,'#a8aeb4');wall.addColorStop(1,'#888e94');
+  g.fillStyle=wall;g.fillRect(0,0,240,135);
+  rect(g,0,118,240,17,'#6e747a');                                       // piso
+  // líneas de estatura (estilo ficha policial)
+  g.font='bold 7px "Courier New",monospace';g.textAlign='left';
+  [["1.90",18],["1.80",40],["1.70",62],["1.60",84]].forEach(([t,y])=>{
+    g.fillStyle='rgba(255,255,255,.6)';g.fillRect(0,y,240,1);
+    g.fillStyle='rgba(40,45,55,.8)';g.fillText(t,14,y-2);
+  });
+  // Rocha en uniforme naranja
+  const x=104,y=56,s=2,P=(px,py,w,h,c)=>rect(g,x+px*s,y+py*s,w*s,h*s,c);
+  P(1,0,10,3,'#e8e8e8');P(0,1,2,5,'#dcdcdc');P(10,1,2,5,'#dcdcdc');     // cabello cano
+  P(2,3,8,7,'#d9a878');                                                 // cara
+  P(2,5,3,2,'#1a1a1a');P(7,5,3,2,'#1a1a1a');P(5,5,2,1,'#1a1a1a');       // lentes
+  P(3,6,1,1,'#cfcfcf');                                                 // ceja triste
+  P(4,8,4,1,'#7a3a20');P(3,9,1,1,'#7a3a20');P(8,9,1,1,'#7a3a20');       // boca triste
+  P(4,10,4,1,'#c89868');                                                // cuello
+  P(0,11,12,11,'#ff8c1a');P(0,11,12,1,'#ffa94d');                       // overol naranja
+  P(0,20,12,2,'#d9700f');
+  P(-2,12,2,8,'#ff8c1a');P(12,12,2,8,'#ff8c1a');                        // brazos
+  P(-2,20,2,2,'#d9a878');P(12,20,2,2,'#d9a878');                        // manos (en los barrotes)
+  P(1,22,4,7,'#ff8c1a');P(7,22,4,7,'#ff8c1a');                          // piernas
+  P(0,29,5,2,'#e8e8e8');P(7,29,5,2,'#e8e8e8');                          // tenis de reo
+  // placa de ficha colgada al pecho
+  rect(g,94,81,52,14,'#1c2430');
+  g.fillStyle='#fff';g.font='bold 7px "Courier New",monospace';g.textAlign='center';
+  g.fillText('ROCHA',120,87);g.fillText('Nº 062610',120,93);
+  // sombra de barrotes en la pared y barrotes al frente
+  g.fillStyle='rgba(30,35,45,.15)';
+  for(let bx=4;bx<240;bx+=45)g.fillRect(bx+7,0,7,135);
+  for(let bx=4;bx<240;bx+=45){
+    rect(g,bx,0,7,135,'#2a2e34');rect(g,bx+1,0,2,135,'#555c66');
+  }
+  rect(g,0,16,240,5,'#2a2e34');rect(g,0,17,240,1,'#555c66');            // travesaño
+  rect(g,0,98,240,5,'#2a2e34');rect(g,0,99,240,1,'#555c66');
 }
 
 /* ---------- Entrada ---------- */
@@ -1070,6 +1385,7 @@ if(isIOS&&!inStandalone){const h=document.getElementById('installHint');if(h)h.s
 /* ---------- Init ---------- */
 GRAPH=buildRoadGraph();
 mapCanvas=buildMap();
+buildRiverPts();
 if(isTouch){joy.style.display='block';btnA.style.display='flex';btnFire.style.display='flex';btnAlt.style.display='flex';
   document.getElementById('ctrlText').textContent='Joystick para volar · ALTITUD subir/bajar · DISPARAR defenderte · CAPTURAR';}
 document.getElementById('startHigh').textContent=highScore;
